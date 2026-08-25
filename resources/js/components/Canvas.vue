@@ -70,6 +70,12 @@ const props = defineProps({
     library: { type: Object, default: () => ({}) },
     /** `(handle, kind) => iconName`, built with `createNodeIcon()`. */
     nodeIcon: { type: Function, default: null },
+    /**
+     * Wording on the "+" buttons. `{ root, step }` — an automation starts with
+     * a trigger and a funnel with an entry page, and neither word belongs in
+     * this package.
+     */
+    adderLabels: { type: Object, default: () => ({}) },
     // The pending sidebar "pick mode" target (see Edit.vue). Null when no "+"
     // is currently armed; otherwise `{kind:'append', fromNodeKey, output}` or
     // `{kind:'insert', edge}`. Passed through so adders can render their own
@@ -212,7 +218,12 @@ function adderNode(open, srcPos, node) {
             x: Math.round(srcPos.x + frac * LAYOUT.NODE_WIDTH - ADDER_HALF),
             y: srcPos.y + ADDER_DROP,
         },
-        data: { fromNodeKey: open.from_node_key, output: open.from_output, mode: 'step' },
+        data: {
+            fromNodeKey: open.from_node_key,
+            output: open.from_output,
+            mode: 'step',
+            stepLabel: props.adderLabels.step,
+        },
     };
 }
 
@@ -227,8 +238,14 @@ function rootAdder() {
         focusable: false,
         position: { x: -ADDER_HALF, y: 40 },
         // `mode` tells the adder whether it is offering an entry point or an
-        // ordinary step; the wording on it comes from the kind descriptor.
-        data: { fromNodeKey: null, output: 'default', mode: 'entry' },
+        // ordinary step; the wording comes from the host.
+        data: {
+            fromNodeKey: null,
+            output: 'default',
+            mode: 'entry',
+            rootLabel: props.adderLabels.root,
+            stepLabel: props.adderLabels.step,
+        },
     };
 }
 

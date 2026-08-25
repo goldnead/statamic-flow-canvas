@@ -18,5 +18,6 @@ export { createNodeIcon, NODE_ICON, NODE_KINDS } from './composables/useNodeIcon
 export * from './composables/useAutoLayout.js';
 export * from './composables/useHistory.js';
 export * from './composables/useAutosave.js';
+export * from './composables/useNodeOutputs.js';
 export * from './composables/useNodeValidation.js';
 export * from './composables/useKeyValueRows.js';
