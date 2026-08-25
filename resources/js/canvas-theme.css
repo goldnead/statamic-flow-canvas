@@ -1,0 +1,30 @@
+/*
+ * The accent variables the canvas draws with.
+ *
+ * Import inside a host's `addon-theme` layer. Every value is a Statamic theme
+ * token, so the canvas follows a re-themed Control Panel instead of holding its
+ * own opinion:
+ *
+ *     @layer addon-theme {
+ *         @import "@goldnead/flow-canvas/canvas-theme.css";
+ *     }
+ *
+ * The per-kind accents (`--sa-color-<kind>`) belong to the host, because the
+ * host declares the kinds. Two shipped here — success and failed — because the
+ * canvas itself uses them for true/false branches.
+ */
+
+:root {
+    --sa-color-success: var(--color-emerald-500, #10b981);
+    --sa-color-failed: var(--color-red-500, #ef4444);
+    --sa-color-stopped: var(--color-amber-500, #f59e0b);
+    --sa-color-running: var(--color-blue-500, #3b82f6);
+    --sa-color-skipped: var(--color-gray-400, #9ca3af);
+
+    /* Background fill for the SVG branch-label pills on canvas edges. */
+    --sa-edge-label-bg: var(--color-white, #ffffff);
+}
+
+.dark {
+    --sa-edge-label-bg: var(--color-gray-900, #111827);
+}
