@@ -60,8 +60,11 @@ const warned = new Set();
 /**
  * Register the output specs carried by a node-library payload.
  *
- * Accepts the `{ triggers, logic, actions }` shape the CP pages are handed,
- * or a flat array of node descriptions.
+ * Accepts a flat array of node descriptions, or any map of group name →
+ * descriptions. Group-agnostic on purpose: this package is shared, and an
+ * addon whose groups are called something else — `pages`, `offers` — would
+ * otherwise register no specs at all and silently get one `default` handle on
+ * every node, including the ones that declared two.
  */
 export function setNodeOutputSpecs(library) {
     specs.clear();
@@ -69,11 +72,7 @@ export function setNodeOutputSpecs(library) {
 
     const entries = Array.isArray(library)
         ? library
-        : [
-            ...(library?.triggers ?? []),
-            ...(library?.logic ?? []),
-            ...(library?.actions ?? []),
-        ];
+        : Object.values(library ?? {}).flat();
 
     for (const entry of entries) {
         if (entry?.handle && entry.outputs) specs.set(entry.handle, entry.outputs);
@@ -233,9 +232,9 @@ export function outputsFor(node) {
         warned.add(node.type);
         // eslint-disable-next-line no-console
         console.warn(
-            `[statamic-automations] Node '${node.type}' declares output spec version ${spec.version}, ` +
+            `[flow-canvas] Node '${node.type}' declares output spec version ${spec.version}, ` +
             `this canvas understands ${OUTPUT_SPEC_VERSION}. Falling back to a single "default" output — ` +
-            'the published assets are older than the addon. Re-publish them (php artisan statamic:addons:publish).',
+            'the published assets are older than the addon that ships them. Re-publish them.',
         );
     }
 
