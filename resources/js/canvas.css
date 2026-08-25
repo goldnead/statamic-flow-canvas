@@ -289,3 +289,15 @@
 .vue-flow__minimap svg {
     background: transparent;
 }
+
+/* Vue Flow paints the little node rectangles and the viewport mask with fixed
+ * light greys. On a dark Control Panel that reads as a lit-up box in the corner,
+ * so both follow CP tokens instead. */
+.vue-flow__minimap-node {
+    fill: var(--theme-color-gray-400, #99a1af);
+    stroke: none;
+}
+.vue-flow__minimap-mask {
+    fill: color-mix(in oklab, var(--theme-color-body-bg, #fff) 60%, transparent);
+    stroke: none;
+}

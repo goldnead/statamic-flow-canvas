@@ -349,8 +349,21 @@ function onNodeClick({ node }) {
 </script>
 
 <style>
-@import '@vue-flow/core/dist/style.css';
-@import '@vue-flow/core/dist/theme-default.css';
-@import '@vue-flow/controls/dist/style.css';
-@import '@vue-flow/minimap/dist/style.css';
+/* Vue Flow's own stylesheets go into Tailwind's `base` layer, deliberately.
+ *
+ * Unlayered CSS outranks every layer, so importing these plainly means
+ * `@vue-flow/minimap`'s `background-color: #fff` beats any themed rule the
+ * host writes in `addon-utilities` — the minimap stays a white box in dark
+ * mode, and not only in the addon that happens to build this file: one built
+ * bundle is enough, because the Control Panel loads every addon's stylesheet
+ * on every page.
+ *
+ * `base` is the right layer rather than a new one of our own: Statamic orders
+ * it first, so vendor layout defaults behave like a reset and anything the
+ * host themes on top of them wins.
+ */
+@import '@vue-flow/core/dist/style.css' layer(base);
+@import '@vue-flow/core/dist/theme-default.css' layer(base);
+@import '@vue-flow/controls/dist/style.css' layer(base);
+@import '@vue-flow/minimap/dist/style.css' layer(base);
 </style>
