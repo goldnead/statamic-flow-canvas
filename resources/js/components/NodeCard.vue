@@ -117,25 +117,16 @@
              The card is a fixed 240px (cp.css), so the numbers are glyph plus
              figure with the sentence in the tooltip, and the failure figure only
              appears when there is a failure to report. -->
-        <div v-if="stats" class="sa-node__stats" data-node-stats>
-            <span class="sa-node__stat" :title="__(':n reached this step', { n: stats.reached })">
-                <Icon name="arrow-down" class="size-3" />
-                <span>{{ formatCount(stats.reached) }}</span>
-            </span>
+        <div v-if="figures.length" class="sa-node__stats" data-node-stats>
             <span
-                class="sa-node__stat sa-node__stat--done"
-                :title="__(':n got through it', { n: stats.completed })"
+                v-for="figure in figures"
+                :key="figure.key"
+                class="sa-node__stat"
+                :class="figure.tone ? `sa-node__stat--${figure.tone}` : null"
+                :title="figure.label"
             >
-                <Icon name="checkmark" class="size-3" />
-                <span>{{ formatCount(stats.completed) }}</span>
-            </span>
-            <span
-                v-if="stats.failed"
-                class="sa-node__stat sa-node__stat--failed"
-                :title="__(':n failed here', { n: stats.failed })"
-            >
-                <Icon name="warning-diamond" class="size-3" />
-                <span>{{ formatCount(stats.failed) }}</span>
+                <Icon :name="figure.icon" class="size-3" />
+                <span>{{ figure.text }}</span>
             </span>
         </div>
 
@@ -186,11 +177,20 @@ const props = defineProps({
     status: { type: String, default: null },
     selected: { type: Boolean, default: false },
     /**
-     * `{ reached, completed, failed }` for this node in the activity view's
-     * current window, or null when this node has no runs in it. Null is not the
-     * same as zeroes and is rendered as nothing at all — see the template.
+     * What this node has done, for the strip on the card. Null when nothing has
+     * run through it: null is not the same as zeroes, and a fresh graph whose
+     * every card reads "0 / 0 / 0" looks broken rather than new.
+     *
+     * Two accepted shapes:
+     *
+     * - A **list** of `{ key, icon, value, label, tone? }`. The host decides
+     *   what the figures mean and, importantly, what they are called: an
+     *   automation's node "completed" and a funnel step's visitor "continued"
+     *   are not the same sentence, and neither belongs in this package.
+     * - The **legacy** `{ reached, completed, failed }` object, kept working so
+     *   a host that has not moved over renders as before.
      */
-    stats: { type: Object, default: null },
+    stats: { type: [Object, Array], default: null },
 });
 
 /**
@@ -203,6 +203,38 @@ function formatCount(value) {
     if (n < 1000) return String(n);
     return `${(n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '')}k`;
 }
+
+/**
+ * The strip, normalised.
+ *
+ * A figure with no value at all is dropped rather than shown as zero, which is
+ * how the failure count has always behaved and is worth keeping general: an
+ * empty column is noise on a 240px card.
+ */
+const figures = computed(() => {
+    const raw = props.stats;
+
+    if (!raw) return [];
+
+    const list = Array.isArray(raw)
+        ? raw
+        : [
+              { key: 'reached', icon: 'arrow-down', value: raw.reached, label: __(':n reached this step', { n: raw.reached }) },
+              { key: 'completed', icon: 'checkmark', value: raw.completed, tone: 'done', label: __(':n got through it', { n: raw.completed }) },
+              { key: 'failed', icon: 'warning-diamond', value: raw.failed, tone: 'failed', label: __(':n failed here', { n: raw.failed }), onlyWhenSet: true },
+          ];
+
+    return list
+        .filter((f) => !(f.onlyWhenSet && !f.value))
+        .filter((f) => f.value !== null && f.value !== undefined)
+        .map((f) => ({
+            ...f,
+            // A host may pass a ready-made string (a percentage, say). Numbers
+            // still get the thousands treatment, because three five-digit
+            // figures do not fit on one line.
+            text: typeof f.value === 'string' ? f.value : formatCount(f.value),
+        }));
+});
 
 defineEmits(['rename', 'duplicate', 'toggle-disabled', 'delete', 'replace-unique']);
 
