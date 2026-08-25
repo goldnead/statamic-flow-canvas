@@ -3,7 +3,11 @@
   "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
   "type": "library",
   "license": "proprietary",
-  "authors": [{ "name": "Adrian Goldner" }],
+  "authors": [
+    {
+      "name": "Adrian Goldner"
+    }
+  ],
   "require": {
     "php": "^8.2"
   },
@@ -13,5 +17,6 @@
     }
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "version": "1.0.0"
 }
