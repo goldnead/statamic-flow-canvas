@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 — 2026-08-26
+
+- **MIT, no longer proprietary.** A `LICENSE` file, which this package never had, and
+  `"license": "MIT"` in the composer manifest.
+
+  The reason is the dependency, not generosity. `statamic-funnels` **requires** this package, and
+  both were listed as commercial — so buying Funnels left a second licence to sort out that nobody
+  had decided the terms of. A shared editor that two of our own addons consume is infrastructure,
+  and infrastructure that a customer has to buy twice is a bad seam. It also matches the rest of the
+  foundation layer: Brand Context, Identity Contracts and Suppression are MIT for the same reason.
+
+  Nothing about the code changes. Versions up to 1.1.0 were published under the old terms and stay
+  that way; this applies from 1.2.0 on.
+
 ## 1.1.0 — 2026-08-25
 
 - **The stats strip on a node card belongs to the host.** It accepts a list of

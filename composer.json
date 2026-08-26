@@ -2,7 +2,7 @@
   "name": "goldnead/statamic-flow-canvas",
   "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
   "type": "library",
-  "license": "proprietary",
+  "license": "MIT",
   "authors": [
     {
       "name": "Adrian Goldner"
