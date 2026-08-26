@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.1 — 2026-08-26
+
+### Removed — die VERSION-Konstante log
+
+Sie stand auf `1.0.0`, ausgeliefert war v1.2.0. Nichts liess sie mitwandern, wenn ein Tag wanderte —
+eine Versionsnummer, die von Hand kopiert werden muss, driftet nicht aus Versehen, sondern von
+selbst. Wer darauf eine Faehigkeitspruefung baute, bekam die falsche Antwort.
+
+Entfernt statt nachgezogen: niemand in der Familie las sie (gegrept), und wofuer diese Klasse
+existiert — „ist das Paket installiert" — beantwortet `class_exists()`, das nicht veralten kann.
+Composer kennt die Version ohnehin, und dort stimmt sie.
+
 ## 1.2.0 — 2026-08-26
 
 - **MIT, no longer proprietary.** A `LICENSE` file, which this package never had, and
