@@ -32,6 +32,23 @@ const KINDS = {
 `hasInput: false` means no incoming handle is drawn. `replaceable` offers "Replace" instead of
 "Delete" — the way a flow with exactly one entry point has to be edited.
 
+## Nodes, and the picture on one
+
+A node is `{ node_key, type, label, config, disabled }`. One more field is optional:
+
+```js
+{ node_key: 'page_a1b2', type: 'page', label: 'Landing', config: {}, thumbnail: '/storage/…/page_a1b2.png' }
+```
+
+`thumbnail` is a URL. The card draws it as a 16:10 tile the full width of the card, above the
+title. The tile has a fixed height and the image loads lazily inside it, so a card is the same size
+before and after the picture arrives; the layout grows its rows by that height as soon as any node
+on the canvas has one, and not before. Where the picture comes from is the host's business — a
+funnel screenshots its pages, an automation may never have anything to show. Leave the field off and
+the card looks exactly as it always has.
+
+`<Canvas :show-thumbnails="false">` switches the tiles off without stripping the field.
+
 ## Install
 
 It ships as a Composer package and its JavaScript is consumed the same way `@statamic/cms` is:

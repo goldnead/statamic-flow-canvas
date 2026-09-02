@@ -8,6 +8,16 @@
             status === 'warning' && 'sa-node--incomplete',
         ]"
     >
+        <!-- A picture of what this node is, when the host has one: a 16:10
+             tile the full width of the card, above the title. The tile's
+             height is fixed and the image loads lazily inside it, so a card
+             is the same size before and after the picture arrives and the
+             graph never jumps. No `alt`: the title underneath already says
+             what it is. Absent, the card looks exactly as it always has. -->
+        <div v-if="data.thumbnail" class="sa-node__thumb">
+            <img :src="data.thumbnail" alt="" loading="lazy" decoding="async" draggable="false" />
+        </div>
+
         <!-- Header: icon chip · title/subtitle · meta badge · context menu -->
         <div class="sa-node__header">
             <span class="sa-icon-chip">

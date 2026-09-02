@@ -86,6 +86,14 @@ const props = defineProps({
     // node_key, resolved per card in cardProps(). A node missing from the map
     // has had nothing run through it and its card shows no numbers.
     nodeStats: { type: Object, default: () => ({}) },
+    /**
+     * Whether a node's `thumbnail` (a URL the host puts on the node) is drawn
+     * as a 16:10 tile above the card's title. Off, the cards look exactly as
+     * they do for a host that never sets one. Nothing here knows where the
+     * picture came from; a funnel screenshots its pages, an automation may
+     * never have anything to show.
+     */
+    showThumbnails: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([
@@ -154,6 +162,17 @@ const { fitView, onNodesInitialized } = useVueFlow(flowId);
 const ADDER_HALF = 18; // half the "+" button, to centre it under the handle
 const ADDER_DROP = 150; // vertical offset from the node top to its adder
 
+/**
+ * Whether any card on this canvas carries a picture. Decided once for the whole
+ * graph rather than per card, because the rows are a grid: one taller card in a
+ * row of short ones would still need the whole row to be taller, and a graph
+ * whose rows change height as pictures arrive would jump under the cursor.
+ */
+const thumbnailsShown = computed(() => props.showThumbnails && props.nodes.some((n) => !!n.thumbnail));
+
+/** How much taller every row and every adder drop is while pictures are shown. */
+const thumbExtra = computed(() => (thumbnailsShown.value ? LAYOUT.THUMB_HEIGHT : 0));
+
 const ADDER_PREFIX = '__adder__';
 const STUB_PREFIX = '__stub__';
 
@@ -200,6 +219,10 @@ function toVueFlowNode(n, position) {
             type: n.type,
             config: n.config ?? {},
             disabled: n.disabled ?? false,
+            // A URL or nothing. Dropped entirely, not passed as an empty
+            // string, when the host switched pictures off, so the card has no
+            // way of drawing a tile it was told not to.
+            thumbnail: props.showThumbnails && n.thumbnail ? String(n.thumbnail) : null,
         },
     };
 }
@@ -216,7 +239,10 @@ function adderNode(open, srcPos, node) {
         focusable: false,
         position: {
             x: Math.round(srcPos.x + frac * LAYOUT.NODE_WIDTH - ADDER_HALF),
-            y: srcPos.y + ADDER_DROP,
+            // Per node, not per graph: the row grew for everybody, but only a
+            // card that actually shows a picture is taller, and its "+" has to
+            // hang below its own bottom edge.
+            y: srcPos.y + ADDER_DROP + (props.showThumbnails && node?.thumbnail ? LAYOUT.THUMB_HEIGHT : 0),
         },
         data: {
             fromNodeKey: open.from_node_key,
@@ -303,7 +329,7 @@ function stubEdge(open) {
 }
 
 function rebuild() {
-    const layout = computeLayout(props.nodes, props.edges);
+    const layout = computeLayout(props.nodes, props.edges, { rowHeight: LAYOUT.ROW_HEIGHT + thumbExtra.value });
     const nodeByKey = new Map(props.nodes.map((n) => [n.node_key, n]));
 
     const nodes = props.nodes.map((n) => toVueFlowNode(n, layout.positions[n.node_key]));
@@ -324,7 +350,7 @@ function rebuild() {
     vfEdges.value = edges;
 }
 
-watch([() => props.nodes, () => props.edges], rebuild, { immediate: true, deep: true });
+watch([() => props.nodes, () => props.edges, () => props.showThumbnails], rebuild, { immediate: true, deep: true });
 
 watch(
     () => props.selectedKey,

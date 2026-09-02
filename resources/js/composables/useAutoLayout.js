@@ -32,6 +32,9 @@ export const LAYOUT = {
     NODE_WIDTH: 240,
     COLUMN_SPAN: 320, // horizontal distance between sibling branch columns
     ROW_HEIGHT: 200, // vertical distance between depth levels
+    // The 16:10 picture on a card, when the host supplies one: the card is
+    // 240 wide, so the tile is 150 high, and every row grows by as much.
+    THUMB_HEIGHT: 150,
     ORIGIN_X: 0,
     ORIGIN_Y: 0,
 };
@@ -70,13 +73,17 @@ export function fractionForOutput(node, output) {
  *
  * @param {Array}  nodes    [{ node_key, type, config, ... }]
  * @param {Array}  edges    [{ from_node_key, from_output, to_node_key }]
+ * @param {Object} [options]
+ * @param {number} [options.rowHeight]  Vertical distance between depth levels.
+ *   Defaults to `LAYOUT.ROW_HEIGHT`; the canvas adds `LAYOUT.THUMB_HEIGHT` when
+ *   the cards carry a thumbnail, because a taller card needs a taller row.
  * @returns {{ positions: Object, openOutputs: Array, roots: Array }}
  *   positions:   { [node_key]: { x, y } }
  *   openOutputs: [{ from_node_key, from_output }] — outputs with no edge yet
  *                (these are where the append "+" adders are placed)
  *   roots:       node_keys with no incoming edge (top of the flow)
  */
-export function computeLayout(nodes = [], edges = []) {
+export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT } = {}) {
     const positions = {};
     if (!nodes.length) {
         return { positions, openOutputs: [], roots: [] };
@@ -144,7 +151,7 @@ export function computeLayout(nodes = [], edges = []) {
         }
         positions[key] = {
             x: Math.round(centerX),
-            y: LAYOUT.ORIGIN_Y + depth * LAYOUT.ROW_HEIGHT,
+            y: LAYOUT.ORIGIN_Y + depth * rowHeight,
         };
         return centerX;
     }

@@ -51,6 +51,23 @@
     @apply text-xs text-red-600 dark:text-red-400 mt-1;
 }
 
+/* The picture on a card, when the host supplies one. Fixed at 16:10 of the
+ * card's 240px (see LAYOUT.THUMB_HEIGHT — the layout grows its rows by the
+ * same amount), so the card is the same height before the image has loaded.
+ * The top corners follow the card's radius minus its 1px border; the card
+ * itself keeps `overflow: visible` because the handles sit on its edges. The
+ * tile's own ground is the card's ground in both modes, so a slow or missing
+ * image never shows as a white block on a dark canvas. */
+.sa-node__thumb {
+    @apply block w-full overflow-hidden rounded-t-[11px]
+           border-b border-gray-100 dark:border-gray-800
+           bg-gray-50 dark:bg-gray-800/60;
+    height: 150px;
+}
+.sa-node__thumb img {
+    @apply block size-full object-cover object-top select-none;
+}
+
 .sa-node__header {
     @apply flex items-start gap-2.5 px-3 pt-3 pb-2;
 }
