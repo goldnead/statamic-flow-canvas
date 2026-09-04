@@ -58,6 +58,33 @@ const specs = new Map();
 const warned = new Set();
 
 /**
+ * Where "the published assets are older than the addon" is reported.
+ *
+ * This is not a debug leftover: a canvas meeting a spec it cannot read is a
+ * real, production-only shape (the bundle in `public/vendor/` lags the PHP
+ * that shipped it), and the fallback that follows is silent by design —
+ * every node still draws. So the one place that knows has to say so once.
+ * The default is the browser console; a host may route it elsewhere (a toast,
+ * its own logger) with `onStaleOutputSpec()`.
+ */
+// eslint-disable-next-line no-console
+const defaultStaleSpecHandler = (message) => console.warn(message);
+let staleSpecHandler = defaultStaleSpecHandler;
+
+/**
+ * Replace the reporter for a spec this canvas cannot read. Pass `null` to
+ * restore the default. Returns the handler that was in place.
+ *
+ * @param {((message: string, details: {type: string, version: number, supported: number}) => void)|null} handler
+ */
+export function onStaleOutputSpec(handler) {
+    const previous = staleSpecHandler;
+    staleSpecHandler = typeof handler === 'function' ? handler : defaultStaleSpecHandler;
+
+    return previous;
+}
+
+/**
  * Register the output specs carried by a node-library payload.
  *
  * Accepts a flat array of node descriptions, or any map of group name →
@@ -228,13 +255,14 @@ export function outputsFor(node) {
 
     if (!spec) return DEFAULT_OUTPUTS.map((out) => ({ ...out }));
 
-    if (Number(spec.version ?? OUTPUT_SPEC_VERSION) > OUTPUT_SPEC_VERSION && !warned.has(node.type)) {
+    const version = Number(spec.version ?? OUTPUT_SPEC_VERSION);
+    if (version > OUTPUT_SPEC_VERSION && !warned.has(node.type)) {
         warned.add(node.type);
-        // eslint-disable-next-line no-console
-        console.warn(
+        staleSpecHandler(
             `[flow-canvas] Node '${node.type}' declares output spec version ${spec.version}, ` +
             `this canvas understands ${OUTPUT_SPEC_VERSION}. Falling back to a single "default" output — ` +
             'the published assets are older than the addon that ships them. Re-publish them.',
+            { type: node.type, version, supported: OUTPUT_SPEC_VERSION },
         );
     }
 
