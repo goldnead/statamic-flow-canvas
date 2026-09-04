@@ -157,10 +157,55 @@ const vfNodes = ref([]);
 const vfEdges = ref([]);
 const realNodeCount = computed(() => props.nodes.length);
 
-const { fitView, onNodesInitialized } = useVueFlow(flowId);
+const { fitView, onNodesInitialized, onNodesChange } = useVueFlow(flowId);
+
+/**
+ * Die tatsaechlich gerenderten Kartenhoehen, `node_key` -> Pixel.
+ *
+ * Das Layout rechnete die Ebenen mit einer festen Zeilenhoehe aus. Eine Karte,
+ * die durch ihren Inhalt hoeher wird — vier Variablen-Pills auf einem
+ * `send_email` reichen —, ragte damit in die Ebene darunter, und der „+"-Knopf
+ * dazwischen verschwand halb hinter der naechsten Karte (Adrians Befund F19
+ * vom 03.09.2026). Gemessen wird deshalb erst gerendert, dann neu gelegt.
+ */
+const measuredHeights = ref({});
+
+/**
+ * Uebernimmt die gemessenen Hoehen, aber nur wenn sich wirklich etwas geaendert
+ * hat: das Neulegen aendert nur y-Positionen, nie Hoehen, also kommt die
+ * Schleife nach einem Durchlauf zur Ruhe. Ohne diesen Vergleich liefe sie
+ * endlos, weil jede Zuweisung `rebuild()` erneut ausloest.
+ */
+function applyMeasuredHeights(graphNodes) {
+    const next = { ...measuredHeights.value };
+    let changed = false;
+
+    for (const node of graphNodes ?? []) {
+        if (!node?.id || isSynthetic(node.id)) continue;
+        const height = Math.round(node.dimensions?.height ?? 0);
+        if (!height) continue;
+        if (next[node.id] !== height) {
+            next[node.id] = height;
+            changed = true;
+        }
+    }
+
+    // Karten, die es nicht mehr gibt, nicht ewig mitschleppen.
+    for (const key of Object.keys(next)) {
+        if (!props.nodes.some((n) => n.node_key === key)) {
+            delete next[key];
+            changed = true;
+        }
+    }
+
+    if (changed) measuredHeights.value = next;
+}
 
 const ADDER_HALF = 18; // half the "+" button, to centre it under the handle
 const ADDER_DROP = 150; // vertical offset from the node top to its adder
+// Abstand zwischen der Unterkante einer gemessenen Karte und ihrem „+".
+// Entspricht dem, was ADDER_DROP bei einer Karte in Normalhoehe uebrig liess.
+const ADDER_GAP = ADDER_DROP - LAYOUT.NODE_HEIGHT;
 
 /**
  * Whether any card on this canvas carries a picture. Decided once for the whole
@@ -242,7 +287,14 @@ function adderNode(open, srcPos, node) {
             // Per node, not per graph: the row grew for everybody, but only a
             // card that actually shows a picture is taller, and its "+" has to
             // hang below its own bottom edge.
-            y: srcPos.y + ADDER_DROP + (props.showThumbnails && node?.thumbnail ? LAYOUT.THUMB_HEIGHT : 0),
+            //
+            // Dasselbe gilt fuer eine Karte, die durch ihren Inhalt hoch wird:
+            // liegt eine gemessene Hoehe vor, haengt der „+" unter DIESER Karte
+            // statt unter der angenommenen Normalhoehe. Ohne Messung bleibt es
+            // beim bisherigen festen Abstand.
+            y: measuredHeights.value[open.from_node_key]
+                ? srcPos.y + measuredHeights.value[open.from_node_key] + ADDER_GAP
+                : srcPos.y + ADDER_DROP + (props.showThumbnails && node?.thumbnail ? LAYOUT.THUMB_HEIGHT : 0),
         },
         data: {
             fromNodeKey: open.from_node_key,
@@ -329,7 +381,10 @@ function stubEdge(open) {
 }
 
 function rebuild() {
-    const layout = computeLayout(props.nodes, props.edges, { rowHeight: LAYOUT.ROW_HEIGHT + thumbExtra.value });
+    const layout = computeLayout(props.nodes, props.edges, {
+        rowHeight: LAYOUT.ROW_HEIGHT + thumbExtra.value,
+        nodeHeights: measuredHeights.value,
+    });
     const nodeByKey = new Map(props.nodes.map((n) => [n.node_key, n]));
 
     const nodes = props.nodes.map((n) => toVueFlowNode(n, layout.positions[n.node_key]));
@@ -350,7 +405,13 @@ function rebuild() {
     vfEdges.value = edges;
 }
 
-watch([() => props.nodes, () => props.edges, () => props.showThumbnails], rebuild, { immediate: true, deep: true });
+// `measuredHeights` gehoert mit in die Liste: die erste Runde legt die Karten
+// mit Annahmen aus, die zweite mit dem, was der Browser wirklich gerendert hat.
+watch(
+    [() => props.nodes, () => props.edges, () => props.showThumbnails, measuredHeights],
+    rebuild,
+    { immediate: true, deep: true },
+);
 
 watch(
     () => props.selectedKey,
@@ -360,8 +421,19 @@ watch(
 );
 
 // Keep the whole flow framed after structural changes (add / insert / delete).
-onNodesInitialized(() => {
+onNodesInitialized((graphNodes) => {
+    applyMeasuredHeights(graphNodes);
     nextTick(() => fitView({ padding: 0.25, duration: 200, maxZoom: 1 }));
+});
+
+// Eine Karte kann auch ohne Strukturaenderung wachsen — es reicht, im
+// Eigenschaften-Panel eine Variable zu ergaenzen. vue-flow meldet das als
+// Groessenaenderung; ohne diesen Haken bliebe die Ebene darunter auf dem
+// Abstand von vorher stehen und die Karten ueberlappten wieder.
+onNodesChange((changes) => {
+    const resized = (changes ?? []).filter((change) => change.type === 'dimensions' && change.dimensions);
+    if (!resized.length) return;
+    applyMeasuredHeights(resized.map((change) => ({ id: change.id, dimensions: change.dimensions })));
 });
 
 function statusFor(id) {

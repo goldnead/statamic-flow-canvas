@@ -31,7 +31,11 @@ export { outputsFor };
 export const LAYOUT = {
     NODE_WIDTH: 240,
     COLUMN_SPAN: 320, // horizontal distance between sibling branch columns
-    ROW_HEIGHT: 200, // vertical distance between depth levels
+    ROW_HEIGHT: 200, // vertical distance between depth levels, bei Karten in Normalhoehe
+    // Wie hoch eine Karte ohne Zusatzinhalt ist. ROW_HEIGHT minus diese Zahl
+    // ergibt den Zwischenraum, der zwischen zwei Ebenen bleiben soll. Wird eine
+    // Karte hoeher gemessen, waechst nur ihre Ebene — der Zwischenraum bleibt.
+    NODE_HEIGHT: 140,
     // The 16:10 picture on a card, when the host supplies one: the card is
     // 240 wide, so the tile is 150 high, and every row grows by as much.
     THUMB_HEIGHT: 150,
@@ -77,14 +81,23 @@ export function fractionForOutput(node, output) {
  * @param {number} [options.rowHeight]  Vertical distance between depth levels.
  *   Defaults to `LAYOUT.ROW_HEIGHT`; the canvas adds `LAYOUT.THUMB_HEIGHT` when
  *   the cards carry a thumbnail, because a taller card needs a taller row.
+ * @param {Object<string, number>} [options.nodeHeights]  Gemessene Kartenhoehen
+ *   je `node_key`. Fehlt die Angabe, liegt jede Ebene genau `rowHeight` unter
+ *   der vorigen — das war bis 1.3.0 die einzige Rechnung und ist der Grund,
+ *   warum eine Karte, die durch ihren Inhalt hoeher wird als `rowHeight`, die
+ *   naechste Ebene ueberlappt hat (Adrians Befund F19 vom 03.09.2026: vier
+ *   Variablen-Pills auf „Zugang schicken", und „Kontakt anlegen" lag darueber).
+ *   Mit den Hoehen bekommt jede Ebene den Abstand, den ihre hoechste Karte
+ *   braucht; alle anderen Ebenen bleiben, wo sie waren.
  * @returns {{ positions: Object, openOutputs: Array, roots: Array }}
  *   positions:   { [node_key]: { x, y } }
  *   openOutputs: [{ from_node_key, from_output }] — outputs with no edge yet
  *                (these are where the append "+" adders are placed)
  *   roots:       node_keys with no incoming edge (top of the flow)
  */
-export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT } = {}) {
+export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT, nodeHeights = null } = {}) {
     const positions = {};
+    const depthOf = {};
     if (!nodes.length) {
         return { positions, openOutputs: [], roots: [] };
     }
@@ -149,10 +162,11 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
             const centers = kids.map((k) => place(k, depth + 1));
             centerX = (centers[0] + centers[centers.length - 1]) / 2;
         }
-        positions[key] = {
-            x: Math.round(centerX),
-            y: LAYOUT.ORIGIN_Y + depth * rowHeight,
-        };
+        // y kommt erst nach dem Platzieren: es haengt davon ab, wie hoch die
+        // hoechste Karte jeder darueberliegenden Ebene ist, und das steht erst
+        // fest, wenn alle Ebenen bekannt sind.
+        depthOf[key] = depth;
+        positions[key] = { x: Math.round(centerX), y: LAYOUT.ORIGIN_Y };
         return centerX;
     }
 
@@ -163,6 +177,30 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
     // Any node not reached from a root (defensive) gets stacked at the end.
     for (const n of nodes) {
         if (!positions[n.node_key]) place(n.node_key, 0);
+    }
+
+    // Ebene fuer Ebene nach unten, jede so weit wie ihre hoechste Karte.
+    //
+    // Ohne gemessene Hoehen zaehlt ueberall NODE_HEIGHT, damit steht jede Ebene
+    // wieder genau `rowHeight` unter der vorigen — dieselbe Rechnung wie zuvor.
+    const gap = Math.max(0, rowHeight - LAYOUT.NODE_HEIGHT);
+    const tallestAt = new Map();
+    let maxDepth = 0;
+    for (const [key, depth] of Object.entries(depthOf)) {
+        if (depth > maxDepth) maxDepth = depth;
+        const measured = nodeHeights?.[key];
+        const height = Number.isFinite(measured) && measured > 0 ? measured : LAYOUT.NODE_HEIGHT;
+        tallestAt.set(depth, Math.max(tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT, height));
+    }
+
+    const yAt = [];
+    let y = LAYOUT.ORIGIN_Y;
+    for (let depth = 0; depth <= maxDepth; depth++) {
+        yAt[depth] = y;
+        y += (tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT) + gap;
+    }
+    for (const [key, depth] of Object.entries(depthOf)) {
+        positions[key].y = yAt[depth];
     }
 
     // Open outputs = append points ("+" adders).
