@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.4.0 — 2026-09-05
+
+- **Ebenen folgen der echten Kartenhöhe, nicht einer festen Zeile.** `computeLayout()` legte jede
+  Ebene genau `ROW_HEIGHT` unter die vorige. Eine Karte, die durch ihren Inhalt höher wird als
+  diese 200px (vier Variablen-Pills auf einem `send_email` reichen), ragte damit in die Ebene
+  darunter, und der Plus-Knopf dazwischen verschwand halb hinter der nächsten Karte (Befund F19
+  vom 03.09.2026).
+
+  Neu: `computeLayout(nodes, edges, { nodeHeights })` nimmt die gemessenen Kartenhöhen je
+  `node_key` und gibt jeder Ebene den Abstand, den ihre höchste Karte braucht; alle anderen Ebenen
+  bleiben, wo sie waren. Ohne die Angabe rechnet es bitgleich wie vorher, drei Knoten ergeben
+  weiter y = 0, 200, 400. Die Canvas misst die Karten selbst und reicht die Höhen durch.
+
+- **Das Paket ist ein Statamic-Addon, kein anonymes `library`.** `composer.json` trägt jetzt
+  `type: statamic-addon`, `extra.statamic` (Name, Beschreibung, Slug, URL, Entwickler) und einen
+  Service-Provider. Der Provider ist absichtlich leer: er veröffentlicht nichts und registriert
+  nichts, denn die Hosts kompilieren die Canvas in ihre eigenen Bundles. Er existiert, weil
+  Statamic ein Paket nur dann auf der Addons-Seite listet, wenn `extra.statamic` **und** ein
+  Provider da sind; ohne ihn fällt der Eintrag wortlos aus dem Manifest. `statamic/cms ^6.0` steht
+  nun explizit in `require`, wo es vorher nur durch die Hosts impliziert war.
+
+- **Eine Testsuite, auf zwei Ebenen.** PHPUnit über `Statamic\Testing\AddonTestCase` prüft, dass
+  der Provider bootet, was das Manifest der Marketplace-Karte liefert, und dass jeder Pfad, den die
+  Hosts aus `@goldnead/flow-canvas` importieren, noch existiert. Vitest läuft direkt gegen die
+  Quelldateien in `resources/js/composables` (kein Build nötig): Auto-Layout, Undo/Redo mit
+  Coalescing, Output-Spezifikationen, Validierung und Key-Value-Zeilen, 43 Tests. Jeder Test wurde
+  einmal gegen eine absichtlich zerbrochene Funktion gehalten und ist dabei rot geworden. CI fährt
+  PHP 8.2 bis 8.4 gegen Laravel 12 und 13, dazu den JS-Job, Pint und den addon-lint des Studios.
+
+- **`onStaleOutputSpec(handler)`.** Trifft die Canvas auf eine Output-Spezifikation aus einer
+  neueren Vertragsversion, fällt sie auf einen `default`-Ausgang zurück und meldet das einmal je
+  Knotentyp. Bisher fest an `console.warn`; das bleibt der Standard, aber ein Host kann die Meldung
+  nun umleiten (Toast, eigener Logger). Der Handler bekommt den Text und
+  `{ type, version, supported }`.
+
+- Ein leeres `dist/`, `config/` oder Vite-Setup gibt es weiterhin nicht, und das ist jetzt auch
+  ein Test: die Hosts sind der Ort, an dem aus dieser Canvas ein Bundle wird.
+
 ## 1.3.0 — 2026-09-02
 
 - **A node may carry a `thumbnail`.** A URL on the node, and the card draws it as a 16:10 tile the
