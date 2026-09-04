@@ -1,21 +1,81 @@
 {
-  "name": "goldnead/statamic-flow-canvas",
-  "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
-  "type": "library",
-  "license": "MIT",
-  "authors": [
-    {
-      "name": "Adrian Goldner"
-    }
-  ],
-  "require": {
-    "php": "^8.2"
-  },
-  "autoload": {
-    "psr-4": {
-      "Goldnead\\FlowCanvas\\": "src/"
-    }
-  },
-  "minimum-stability": "stable",
-  "prefer-stable": true
+    "name": "goldnead/statamic-flow-canvas",
+    "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
+    "type": "statamic-addon",
+    "license": "MIT",
+    "keywords": [
+        "statamic",
+        "statamic-addon",
+        "vue-flow",
+        "node-graph",
+        "canvas"
+    ],
+    "authors": [
+        {
+            "name": "Adrian Goldner",
+            "email": "info@adriangoldner.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/goldnead/statamic-flow-canvas/issues",
+        "source": "https://github.com/goldnead/statamic-flow-canvas"
+    },
+    "require": {
+        "php": "^8.2",
+        "statamic/cms": "^6.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.18",
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Goldnead\\FlowCanvas\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Goldnead\\FlowCanvas\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "slug": "flow-canvas",
+            "name": "Flow Canvas",
+            "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
+            "url": "https://github.com/goldnead/statamic-flow-canvas",
+            "developer": "Adrian Goldner",
+            "developer-url": "https://gldnr.studio"
+        },
+        "laravel": {
+            "providers": [
+                "Goldnead\\FlowCanvas\\ServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": [
+            "php -d memory_limit=-1 ./vendor/bin/phpunit"
+        ],
+        "test:js": [
+            "npx vitest run"
+        ],
+        "lint": [
+            "./vendor/bin/pint --test"
+        ],
+        "fix": [
+            "./vendor/bin/pint"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pixelfear/composer-dist-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

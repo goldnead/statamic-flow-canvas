@@ -1,0 +1,22 @@
+{
+    "disable": ["ui.vite-config"],
+
+    "_rationale": {
+        "ui.vite-config": [
+            "Disabled because the rule's premise does not hold here: this package has no build.",
+
+            "What the rule is right about: CP JavaScript has to be compiled with `@statamic/cms/vite-plugin`,",
+            "otherwise the bundle carries a second Vue and nothing mounts.",
+
+            "Why that is not this repository's job: `resources/js` is installed by the host addons as",
+            "`@goldnead/flow-canvas` (`file:./vendor/goldnead/statamic-flow-canvas/resources/js`) and compiled",
+            "inside THEIR Vite pipelines — `statamic-automations/vite.config.js` and",
+            "`statamic-funnels/vite.config.js`, both with the Statamic plugin, `preserveSymlinks` and a",
+            "`dedupe` on vue and @vue-flow/*. That is where the one-Vue guarantee is made, and it is the",
+            "only place it can be made: a bundle built here would be exactly the second copy the rule warns about.",
+
+            "A vite.config.js in this repo would therefore describe a build that does not exist. The test",
+            "runner reads `vitest.config.js` instead, so the linter does not mistake it for one."
+        ]
+    }
+}

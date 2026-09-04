@@ -49,9 +49,24 @@ the card looks exactly as it always has.
 
 `<Canvas :show-thumbnails="false">` switches the tiles off without stripping the field.
 
-## Install
+## Requirements
 
-It ships as a Composer package and its JavaScript is consumed the same way `@statamic/cms` is:
+- PHP 8.2 or newer
+- Statamic 6 (`statamic/cms ^6.0`), on Laravel 12 or 13
+- A host addon with its own Vite build using `@statamic/cms/vite-plugin`. This package has no
+  build of its own: the host compiles it.
+- In the host's `package.json`: `vue ^3.4`, `@vue-flow/core ^1.41`, `@vue-flow/background`,
+  `@vue-flow/controls`, `@vue-flow/minimap`. They are peer dependencies here; the host owns them.
+
+## Installation
+
+```bash
+composer require goldnead/statamic-flow-canvas
+```
+
+The service provider is discovered by Laravel and registers nothing: it exists so Statamic lists
+the package on the Addons screen. The JavaScript is consumed the same way `@statamic/cms` is, from
+the vendor directory:
 
 ```json
 "dependencies": {
@@ -61,5 +76,91 @@ It ships as a Composer package and its JavaScript is consumed the same way `@sta
 
 Composer therefore has to run before npm, exactly as it already does for `@statamic/cms`.
 
-`@vue-flow/*` and `vue` are peer dependencies: the host owns them, so there is one copy of the
-flow library and one Vue on the page.
+npm links that path, so the package's files sit outside the host project and would resolve `vue`
+from the wrong place. Two lines in the host's `vite.config.js` keep one Vue and one flow library on
+the page:
+
+```js
+export default defineConfig({
+    resolve: {
+        preserveSymlinks: true,
+        dedupe: ['vue', '@vue-flow/core', '@vue-flow/background', '@vue-flow/controls', '@vue-flow/minimap'],
+    },
+    plugins: [statamic(), tailwindcss(), laravel({ /* … */ })],
+});
+```
+
+## Usage
+
+Everything is exported from the barrel; deep imports work as well
+(`@goldnead/flow-canvas/components/Canvas.vue`, `@goldnead/flow-canvas/composables/useHistory.js`).
+
+```js
+import { Canvas, NodeLibrary, setNodeOutputSpecs, useHistory } from '@goldnead/flow-canvas';
+```
+
+The page that owns the editor tells the canvas which handles each node type has, once, from the
+node library the server rendered, and wires the undo stack to its own graph state:
+
+```js
+setNodeOutputSpecs(props.library);
+
+const graph = ref({ nodes: [...], edges: [...] });
+
+const history = useHistory({
+    getState: () => ({ nodes: graph.value.nodes, edges: graph.value.edges }),
+    setState: (state) => {
+        graph.value.nodes = state.nodes;
+        graph.value.edges = state.edges;
+    },
+});
+// After each structural change: history.record(). While typing into one field:
+// history.record(`label:${node.node_key}`), so a burst of keystrokes is one undo step.
+```
+
+```vue
+<NodeLibrary :library="library" :kinds="KINDS" :node-icon="nodeIcon" @pick="addNode" />
+
+<Canvas
+    :kinds="KINDS"
+    :node-icon="nodeIcon"
+    :nodes="graph.nodes"
+    :edges="graph.edges"
+    :library="library"
+    :selected-key="selectedKey"
+    @select="selectedKey = $event"
+    @remove-node="removeNode"
+/>
+```
+
+The canvas draws nothing it was not told about: `kinds` (see above) says what the boxes are,
+`node-icon` maps a type to an icon, and every label the host wants translated comes in as a prop
+(`adder-labels`, `pick-labels`), because Statamic's `__()` does not know the host's language file
+from inside a shared component.
+
+The stylesheets ship with the package and go into the host's CP stylesheet, the theme first:
+
+```css
+@import "@goldnead/flow-canvas/canvas-theme.css";
+@import "@goldnead/flow-canvas/canvas.css";
+```
+
+### When the published bundle is older than the server
+
+A node whose output spec is newer than this canvas understands falls back to a single `default`
+handle and reports it once per type, to the browser console by default. A host that wants it
+somewhere else registers a handler:
+
+```js
+import { onStaleOutputSpec } from '@goldnead/flow-canvas';
+
+onStaleOutputSpec((message, { type, version, supported }) => toast.error(message));
+```
+
+## Development
+
+```bash
+composer install && composer test     # PHPUnit: provider, package identity, the JS surface
+npm ci && npx vitest run              # Vitest: auto-layout, history, node outputs, validation
+vendor/bin/pint --test
+```

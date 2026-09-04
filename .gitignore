@@ -1,2 +1,8 @@
 /node_modules
 resources/js/node_modules
+/vendor
+composer.lock
+.phpunit.cache
+.phpunit.result.cache
+.DS_Store
+# package-lock.json is NOT ignored: CI runs `npm ci`, which needs it.
