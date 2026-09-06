@@ -46,7 +46,7 @@
             "description": "The shared node-graph editor behind Goldnead's Statamic addons: canvas, node cards, config panel, auto-layout, history.",
             "url": "https://github.com/goldnead/statamic-flow-canvas",
             "developer": "Adrian Goldner",
-            "developer-url": "https://gldnr.studio"
+            "developer-url": "https://adriangoldner.dev"
         },
         "laravel": {
             "providers": [
