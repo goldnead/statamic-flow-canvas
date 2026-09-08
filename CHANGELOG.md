@@ -2,50 +2,50 @@
 
 ## 1.4.1 — 2026-09-07
 
-### Geändert: die Entwickler-Adresse zeigt auf adriangoldner.dev
+### Changed: the developer address points to adriangoldner.dev
 
-`extra.statamic.developer-url` in der `composer.json` stand noch auf gldnr.studio. Der Absender,
-den das Control Panel am Addon und Packagist auf der Paketseite anzeigt, lautet jetzt
-adriangoldner.dev, wie bei den übrigen Addons der Suite. Am Code ändert sich nichts; wer nicht
-darauf achtet, wo das Addon herkommt, merkt von dieser Fassung nichts.
+`extra.statamic.developer-url` in `composer.json` still read gldnr.studio. The sender that the
+Control Panel shows on the addon, and Packagist on the package page, now reads
+adriangoldner.dev, like the other addons in the suite. Nothing changes in the code; anyone who
+does not look at where the addon comes from will notice nothing about this release.
 
 ## 1.4.0 — 2026-09-05
 
-- **Ebenen folgen der echten Kartenhöhe, nicht einer festen Zeile.** `computeLayout()` legte jede
-  Ebene genau `ROW_HEIGHT` unter die vorige. Eine Karte, die durch ihren Inhalt höher wird als
-  diese 200px (vier Variablen-Pills auf einem `send_email` reichen), ragte damit in die Ebene
-  darunter, und der Plus-Knopf dazwischen verschwand halb hinter der nächsten Karte (Befund F19
-  vom 03.09.2026).
+- **Levels follow the real card height, not a fixed row.** `computeLayout()` placed every level
+  exactly `ROW_HEIGHT` below the previous one. A card that grows taller than those 200px through
+  its content (four variable pills on a `send_email` are enough) reached into the level below,
+  and the plus button between them half disappeared behind the next card (finding F19 of
+  2026-09-03).
 
-  Neu: `computeLayout(nodes, edges, { nodeHeights })` nimmt die gemessenen Kartenhöhen je
-  `node_key` und gibt jeder Ebene den Abstand, den ihre höchste Karte braucht; alle anderen Ebenen
-  bleiben, wo sie waren. Ohne die Angabe rechnet es bitgleich wie vorher, drei Knoten ergeben
-  weiter y = 0, 200, 400. Die Canvas misst die Karten selbst und reicht die Höhen durch.
+  New: `computeLayout(nodes, edges, { nodeHeights })` takes the measured card heights per
+  `node_key` and gives every level the spacing its tallest card needs; all other levels stay
+  where they were. Without that argument it computes bit-for-bit as before, three nodes still
+  give y = 0, 200, 400. The canvas measures the cards itself and passes the heights through.
 
-- **Das Paket ist ein Statamic-Addon, kein anonymes `library`.** `composer.json` trägt jetzt
-  `type: statamic-addon`, `extra.statamic` (Name, Beschreibung, Slug, URL, Entwickler) und einen
-  Service-Provider. Der Provider ist absichtlich leer: er veröffentlicht nichts und registriert
-  nichts, denn die Hosts kompilieren die Canvas in ihre eigenen Bundles. Er existiert, weil
-  Statamic ein Paket nur dann auf der Addons-Seite listet, wenn `extra.statamic` **und** ein
-  Provider da sind; ohne ihn fällt der Eintrag wortlos aus dem Manifest. `statamic/cms ^6.0` steht
-  nun explizit in `require`, wo es vorher nur durch die Hosts impliziert war.
+- **The package is a Statamic addon, not an anonymous `library`.** `composer.json` now carries
+  `type: statamic-addon`, `extra.statamic` (name, description, slug, URL, developer) and a
+  service provider. The provider is deliberately empty: it publishes nothing and registers
+  nothing, because the hosts compile the canvas into their own bundles. It exists because
+  Statamic only lists a package on the Addons page when `extra.statamic` **and** a provider are
+  present; without it the entry drops out of the manifest without a word. `statamic/cms ^6.0` is
+  now explicitly in `require`, where it was previously only implied by the hosts.
 
-- **Eine Testsuite, auf zwei Ebenen.** PHPUnit über `Statamic\Testing\AddonTestCase` prüft, dass
-  der Provider bootet, was das Manifest der Marketplace-Karte liefert, und dass jeder Pfad, den die
-  Hosts aus `@goldnead/flow-canvas` importieren, noch existiert. Vitest läuft direkt gegen die
-  Quelldateien in `resources/js/composables` (kein Build nötig): Auto-Layout, Undo/Redo mit
-  Coalescing, Output-Spezifikationen, Validierung und Key-Value-Zeilen, 43 Tests. Jeder Test wurde
-  einmal gegen eine absichtlich zerbrochene Funktion gehalten und ist dabei rot geworden. CI fährt
-  PHP 8.2 bis 8.4 gegen Laravel 12 und 13, dazu den JS-Job, Pint und den addon-lint des Studios.
+- **A test suite, on two levels.** PHPUnit through `Statamic\Testing\AddonTestCase` checks that
+  the provider boots, what the manifest delivers to the Marketplace card, and that every path
+  the hosts import from `@goldnead/flow-canvas` still exists. Vitest runs directly against the
+  source files in `resources/js/composables` (no build needed): auto-layout, undo/redo with
+  coalescing, output specifications, validation and key-value rows, 43 tests. Every test was held
+  once against a deliberately broken function and turned red doing so. CI runs PHP 8.2 to 8.4
+  against Laravel 12 and 13, plus the JS job, Pint and the studio's addon-lint.
 
-- **`onStaleOutputSpec(handler)`.** Trifft die Canvas auf eine Output-Spezifikation aus einer
-  neueren Vertragsversion, fällt sie auf einen `default`-Ausgang zurück und meldet das einmal je
-  Knotentyp. Bisher fest an `console.warn`; das bleibt der Standard, aber ein Host kann die Meldung
-  nun umleiten (Toast, eigener Logger). Der Handler bekommt den Text und
+- **`onStaleOutputSpec(handler)`.** When the canvas meets an output specification from a newer
+  contract version, it falls back to a `default` output and reports that once per node type.
+  Previously wired hard to `console.warn`; that stays the default, but a host can now redirect
+  the message (toast, its own logger). The handler receives the text and
   `{ type, version, supported }`.
 
-- Ein leeres `dist/`, `config/` oder Vite-Setup gibt es weiterhin nicht, und das ist jetzt auch
-  ein Test: die Hosts sind der Ort, an dem aus dieser Canvas ein Bundle wird.
+- There is still no empty `dist/`, `config/` or Vite setup, and that is now a test as well: the
+  hosts are the place where this canvas becomes a bundle.
 
 ## 1.3.0 — 2026-09-02
 
@@ -66,15 +66,15 @@ darauf achtet, wo das Addon herkommt, merkt von dieser Fassung nichts.
 
 ## 1.2.1 — 2026-08-26
 
-### Removed — die VERSION-Konstante log
+### Removed — the VERSION constant
 
-Sie stand auf `1.0.0`, ausgeliefert war v1.2.0. Nichts liess sie mitwandern, wenn ein Tag wanderte —
-eine Versionsnummer, die von Hand kopiert werden muss, driftet nicht aus Versehen, sondern von
-selbst. Wer darauf eine Faehigkeitspruefung baute, bekam die falsche Antwort.
+It stood at `1.0.0` while v1.2.0 was shipped. Nothing moved it along when a tag moved — a version
+number that has to be copied by hand does not drift by accident, it drifts on its own. Anyone who
+built a capability check on it got the wrong answer.
 
-Entfernt statt nachgezogen: niemand in der Familie las sie (gegrept), und wofuer diese Klasse
-existiert — „ist das Paket installiert" — beantwortet `class_exists()`, das nicht veralten kann.
-Composer kennt die Version ohnehin, und dort stimmt sie.
+Removed rather than corrected: nobody in the family read it (grepped), and what this class exists
+for — "is the package installed" — is answered by `class_exists()`, which cannot go stale.
+Composer knows the version anyway, and there it is right.
 
 ## 1.2.0 — 2026-08-26
 
