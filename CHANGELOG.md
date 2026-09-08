@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 — 2026-09-07
+
+### Geändert: die Entwickler-Adresse zeigt auf adriangoldner.dev
+
+`extra.statamic.developer-url` in der `composer.json` stand noch auf gldnr.studio. Der Absender,
+den das Control Panel am Addon und Packagist auf der Paketseite anzeigt, lautet jetzt
+adriangoldner.dev, wie bei den übrigen Addons der Suite. Am Code ändert sich nichts; wer nicht
+darauf achtet, wo das Addon herkommt, merkt von dieser Fassung nichts.
+
 ## 1.4.0 — 2026-09-05
 
 - **Ebenen folgen der echten Kartenhöhe, nicht einer festen Zeile.** `computeLayout()` legte jede
