@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-09-22
 
 ### Added: an edge fade on the node library's tab bar, so scroll isn't a guess
 
