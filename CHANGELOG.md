@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed: the node library's tab bar no longer hides its last group
+
+`TabList` (`@statamic/cms/ui`) renders a plain flex row with neither `overflow-x-auto` nor
+`flex-wrap`. Four groups plus their count pills (Triggers 63, Logic 11, Actions 4, …) don't fit
+the sidebar's 288-300px column. Under automations, whose `overflow-hidden` wrapper around the
+library made it worse, "Actions" was clipped to half a label and unreachable; under funnels,
+which has no such wrapper, the same tabs simply ran off the edge of the canvas. Neither host's
+wrapper is the source, both import the same `NodeLibrary.vue`.
+
+`NodeLibrary.vue` now wraps the tab bar in its own horizontally scrollable strip, so the fix
+lands in both hosts from one place. The bottom border stays full-width, and the fix works
+whether the host clips its column (automations) or not (funnels).
+
 ## 1.4.1 — 2026-09-07
 
 ### Changed: the developer address points to adriangoldner.dev

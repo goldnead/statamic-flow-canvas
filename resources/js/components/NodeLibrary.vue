@@ -33,14 +33,23 @@
         />
 
         <Tabs v-model="activeTab" class="flex-1 flex flex-col min-h-0">
-            <TabList class="mb-2">
-                <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
-                    <span class="flex items-center gap-1.5">
-                        {{ group.label }}
-                        <Badge :text="String(group.items.length)" size="sm" color="default" pill />
-                    </span>
-                </TabTrigger>
-            </TabList>
+            <!-- TabList (@statamic/cms/ui) renders a plain flex row with no
+                 overflow-x-auto and no flex-wrap. Four groups plus their count
+                 pills don't fit a 288-300px sidebar column, and "Actions" was
+                 unreachable: clipped under automations' overflow-hidden wrapper,
+                 spilling past the edge under funnels'. This wrapper turns that
+                 overflow into a horizontal scroll instead, without touching
+                 either host's wrapper. -->
+            <div class="-mx-1 mb-2 overflow-x-auto px-1">
+                <TabList class="flex-nowrap">
+                    <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
+                        <span class="flex items-center gap-1.5">
+                            {{ group.label }}
+                            <Badge :text="String(group.items.length)" size="sm" color="default" pill />
+                        </span>
+                    </TabTrigger>
+                </TabList>
+            </div>
 
             <div class="flex-1 overflow-y-auto">
                 <!-- Search is active: results merge across ALL tabs, grouped by
