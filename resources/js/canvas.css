@@ -15,6 +15,25 @@
  *
  * Every colour is a Statamic CP token or a Tailwind utility that follows the
  * theme. The kind accents come from the host, as `--sa-chip-color` per kind.
+ *
+ * NOT everything shared belongs in here, and the boundary is the layer. Because
+ * both hosts import this file from *inside* their `addon-utilities` block,
+ * anything written here ends up in `addon-utilities` — and measured in the
+ * running CP on 22.09.2026, the document's layer order (first mention wins) is
+ *
+ *     properties > base > addon-theme > addon-utilities > components >
+ *     utilities > ui > ui-states > theme
+ *
+ * `addon-utilities` comes BEFORE `utilities`, and with cascade layers the later
+ * layer wins regardless of specificity. So a rule that has to beat a Statamic
+ * core utility (anything in `utilities`, e.g. `max-w-page`) CANNOT live here.
+ * It loses silently: the selector matches, the rule is loaded, nothing happens.
+ * The full-bleed rule
+ * (`[data-max-width-wrapper]:has(> [data-flow-full-bleed])`) is exactly that
+ * case and therefore lives unlayered in each host's own `cp.css`, duplicated on
+ * purpose. Do not "clean that up" by moving it in here — it shipped inside
+ * `addon-utilities` from 14.08.2026 and never once worked.
+ * See `memory/feedback-addon-layer-verliert-gegen-statamic-utilities.md`.
  */
 
 /* Vue Flow canvas wrapper — must fill its grid cell. */

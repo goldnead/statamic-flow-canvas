@@ -15,6 +15,20 @@ wrapper is the source, both import the same `NodeLibrary.vue`.
 lands in both hosts from one place. The bottom border stays full-width, and the fix works
 whether the host clips its column (automations) or not (funnels).
 
+### Documented: what must NOT go into `canvas.css`, and why
+
+Measured in a running Statamic 6 CP on 22.09.2026, the document's cascade-layer order (first
+mention wins) is `properties > base > addon-theme > addon-utilities > components > utilities >
+ui > ui-states > theme`. `addon-utilities` therefore comes **before** `utilities`, and the later
+layer wins regardless of specificity. Because every host imports `canvas.css` from *inside* its
+own `addon-utilities` block, anything written here can never beat a Statamic core utility: the
+selector matches, the rule loads, nothing happens.
+
+The header of `canvas.css` now says so. This is not theoretical — the flow editor's full-bleed
+rule (`[data-max-width-wrapper]:has(> [data-flow-full-bleed])`, which lifts the CP's 85rem page
+cap) shipped inside `addon-utilities` from 14.08.2026 and never once worked. It lives unlayered
+in each host's own `cp.css` and must stay there. No code change, no behaviour change.
+
 ## 1.4.1 — 2026-09-07
 
 ### Changed: the developer address points to adriangoldner.dev
