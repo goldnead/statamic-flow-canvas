@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Added: an edge fade on the node library's tab bar, so scroll isn't a guess
+
+The horizontal scroll strip added for the tab-bar overflow (below) fixed reachability but not
+discoverability: the scrollbar is an invisible overlay until you scroll, so nothing told an
+operator who never scrolled that "Actions" was still there. Two independent reviews flagged the
+same residual gap.
+
+A soft gradient now sits at each edge of the strip, visible only on the side that still has
+content to scroll to, and gone once that end is reached — a fade that never disappears would be
+lying about the list having more. `aria-hidden` and `pointer-events: none`, so it never becomes
+the click target the tab underneath should be. Colour is `var(--theme-color-content-bg)` (the
+same custom property `bg-content-bg` resolves to), not a hex value, so it tracks the CP's
+light/dark theme.
+
+Implemented as plain CSS in a component-scoped `<style>` block, not Tailwind utility classes.
+Measured while building this: automations does **not** `@import` `canvas.css` (it keeps its own
+hand-duplicated copy of the `sa-*` classes), and neither host's Tailwind build scans this
+package's `resources/js` at all — a brand-new utility class used only here compiles into no rule
+in either consuming host, silently. `bg-content-bg` already in `NodeLibrary.vue` only ever
+"worked" because both hosts happen to use that exact class elsewhere in their own source; a
+gradient stop like `from-content-bg` has no such coincidence to fall back on. Plain CSS in the
+SFC's own `<style>` block sidesteps both problems — Vite compiles it regardless of what any host's
+Tailwind content scanner sees.
+
+Same fade, same reasoning, built identically (not shared) in `statamic-brand-context`'s
+`Settings.vue`: that addon has no dependency on this package to share a component through, and
+carries no Tailwind build of its own at all.
+
 ### Fixed: the node library's tab bar no longer hides its last group
 
 `TabList` (`@statamic/cms/ui`) renders a plain flex row with neither `overflow-x-auto` nor

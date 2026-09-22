@@ -40,15 +40,55 @@
                  spilling past the edge under funnels'. This wrapper turns that
                  overflow into a horizontal scroll instead, without touching
                  either host's wrapper. -->
-            <div class="-mx-1 mb-2 overflow-x-auto px-1">
-                <TabList class="flex-nowrap">
-                    <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
-                        <span class="flex items-center gap-1.5">
-                            {{ group.label }}
-                            <Badge :text="String(group.items.length)" size="sm" color="default" pill />
-                        </span>
-                    </TabTrigger>
-                </TabList>
+            <div class="flow-tab-fade-wrap mb-2">
+                <div
+                    ref="tabScroller"
+                    class="-mx-1 overflow-x-auto px-1"
+                    data-node-library-tabs-shell
+                    @scroll="updateTabFade"
+                >
+                    <TabList class="flex-nowrap">
+                        <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
+                            <span class="flex items-center gap-1.5">
+                                {{ group.label }}
+                                <Badge :text="String(group.items.length)" size="sm" color="default" pill />
+                            </span>
+                        </TabTrigger>
+                    </TabList>
+                </div>
+
+                <!--
+                    Weiche Kante statt Dekoration: der Fade zeigt nur, wenn in diese
+                    Richtung wirklich noch Tabs liegen, und verschwindet, sobald das Ende
+                    erreicht ist — sonst waere er eine Kante, die am Ende der Liste luegt.
+                    Aria-hidden und `pointer-events: none`, damit er keinen Klick schluckt:
+                    der Tab darunter bleibt der Treffer, nicht das Overlay. Farbe kommt aus
+                    dem Statamic-Token `var(--theme-color-content-bg)` (derselbe Wert, den
+                    `bg-content-bg` aufloest), kein fester Hex-Wert, das traegt Hell und
+                    Dunkel gleichermassen. Plain CSS im <style>-Block unten statt
+                    Tailwind-Utility-Klassen: dieses Repo hat keinen eigenen Tailwind-Build,
+                    Hosts kompilieren NodeLibrary.vue jeweils selbst, und automations bindet
+                    canvas.css nicht ein, sondern haelt eine eigene Kopie der sa-*-Klassen —
+                    eine neue Utility-Klasse hier haette in mindestens einem Host lautlos
+                    keine Regel erzeugt. Baugleich mit der Gegenstelle in NodeLibrary.vue
+                    (statamic-flow-canvas) und Settings.vue (statamic-brand-context) —
+                    zweimal gebaut statt geteilt, weil brand-context nicht von flow-canvas
+                    abhaengt (siehe composer.json) und eine neue Abhaengigkeit fuer eine
+                    Fade-Kante zu teuer waere. Aenderung hier: die Gegenstelle im jeweils
+                    anderen Repo nachziehen.
+                -->
+                <div
+                    v-show="canScrollTabsLeft"
+                    aria-hidden="true"
+                    data-node-library-tabs-fade="left"
+                    class="flow-tab-fade flow-tab-fade--left"
+                />
+                <div
+                    v-show="canScrollTabsRight"
+                    aria-hidden="true"
+                    data-node-library-tabs-fade="right"
+                    class="flow-tab-fade flow-tab-fade--right"
+                />
             </div>
 
             <div class="flex-1 overflow-y-auto">
@@ -97,7 +137,7 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, ref, watch } from 'vue';
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Badge, Button, Icon, Input, TabContent, TabList, Tabs, TabTrigger } from '@statamic/cms/ui';
 import { createNodeIcon } from '../composables/useNodeIcon.js';
 
@@ -153,6 +193,34 @@ watch(groups, (list) => {
         activeTab.value = list[0]?.key ?? null;
     }
 }, { immediate: true });
+
+/** The scrollable strip around the tab bar — see the fade divs in the template. */
+const tabScroller = ref(null);
+const canScrollTabsLeft = ref(false);
+const canScrollTabsRight = ref(false);
+
+/**
+ * Reads the scroll position back out of the DOM. Cheap enough to call on
+ * every scroll tick: three property reads and two comparisons, no layout
+ * thrash. The 1px slack absorbs sub-pixel rounding some browsers report at
+ * the scroll boundary, which would otherwise flicker a fade at rest.
+ */
+function updateTabFade() {
+    const el = tabScroller.value;
+    if (!el) return;
+    canScrollTabsLeft.value = el.scrollLeft > 1;
+    canScrollTabsRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+}
+
+// The group list changes shape under pick mode (entry vs. step groups), which
+// changes how much the tab bar overflows — recompute once the DOM has caught
+// up. A window resize can do the same to the sidebar column itself.
+watch(groups, () => nextTick(updateTabFade));
+onMounted(() => {
+    nextTick(updateTabFade);
+    window.addEventListener('resize', updateTabFade);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', updateTabFade));
 
 const pickBannerText = computed(() => {
     if (props.pickKind === 'replace-entry') return props.pickLabels.replaceEntry ?? __('Choose a replacement.');
@@ -242,3 +310,29 @@ const PaletteItem = defineComponent({
     },
 });
 </script>
+
+<style scoped>
+/* Plain CSS, not Tailwind utilities — see the template comment above the fade
+   divs for why. `var(--theme-color-content-bg)` is the same custom property
+   `bg-content-bg` resolves to, so this tracks the CP's light/dark theme (and
+   any custom accent) without a second definition of what that colour is. */
+.flow-tab-fade-wrap {
+    position: relative;
+}
+.flow-tab-fade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.5rem;
+    z-index: 1;
+    pointer-events: none;
+}
+.flow-tab-fade--left {
+    left: 0;
+    background: linear-gradient(to right, var(--theme-color-content-bg), transparent);
+}
+.flow-tab-fade--right {
+    right: 0;
+    background: linear-gradient(to left, var(--theme-color-content-bg), transparent);
+}
+</style>
