@@ -30,6 +30,15 @@ Same fade, same reasoning, built identically (not shared) in `statamic-brand-con
 `Settings.vue`: that addon has no dependency on this package to share a component through, and
 carries no Tailwind build of its own at all.
 
+### Fixed: the scroll strip itself now uses the same plain CSS as the fade
+
+Building the fade above surfaced that the scroll strip's own classes (`overflow-x-auto`,
+`flex-nowrap`, `-mx-1`, `px-1`) had the identical problem, one strip earlier: see the correction
+under "the node library's tab bar no longer hides its last group" below for what was actually
+measured. `.flow-tab-scroll`/`.flow-tab-list-nowrap`/`.flow-tab-fade-wrap` in `NodeLibrary.vue`'s
+`<style scoped>` block replace all four now, so the strip scrolls and lines up the same way in
+every host regardless of what that host's own bundle happens to contain.
+
 ### Fixed: the node library's tab bar no longer hides its last group
 
 `TabList` (`@statamic/cms/ui`) renders a plain flex row with neither `overflow-x-auto` nor
@@ -42,6 +51,23 @@ wrapper is the source, both import the same `NodeLibrary.vue`.
 `NodeLibrary.vue` now wraps the tab bar in its own horizontally scrollable strip, so the fix
 lands in both hosts from one place. The bottom border stays full-width, and the fix works
 whether the host clips its column (automations) or not (funnels).
+
+**Correction, same day.** The paragraph above is the intent this commit shipped with, not a full
+account of what it did. The strip's classes (`overflow-x-auto`, `flex-nowrap`, `-mx-1`, `px-1`)
+were plain Tailwind utility classes, and this package has no Tailwind build of its own — each
+host compiles `NodeLibrary.vue` through its own. Measured against each host's own compiled CSS on
+22.09.2026: `flex-nowrap` compiled in **neither** host (harmless — `nowrap` is the flexbox
+default, so this was a no-op, not a break). `overflow-x-auto` compiled in both, but only because
+each host happens to use that exact class elsewhere in its own source — the one property that
+actually makes the strip scroll worked by coincidence, not because this fix put it there. `-mx-1`
+and `px-1` did not compile in funnels' own bundle at all; they only appeared to work in the
+Playground because every installed addon's CSS loads on every CP page there, and
+`statamic-automations`'s unrelated bundle happens to define the same classes. A real installation
+with only `statamic-funnels` would not have that safety net. Reachability (can you reach
+"Actions"/the last group by scrolling) held up under this coincidence; the edge padding that lines
+the strip up with the sidebar did not, silently, in funnels specifically. Now fixed for real: see
+the entry above — the same conversion to plain CSS in `NodeLibrary.vue`'s own `<style scoped>`
+block covers the strip's classes too, not just the new fade.
 
 ### Documented: what must NOT go into `canvas.css`, and why
 

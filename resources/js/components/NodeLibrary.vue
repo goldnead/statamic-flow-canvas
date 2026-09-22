@@ -39,15 +39,32 @@
                  unreachable: clipped under automations' overflow-hidden wrapper,
                  spilling past the edge under funnels'. This wrapper turns that
                  overflow into a horizontal scroll instead, without touching
-                 either host's wrapper. -->
-            <div class="flow-tab-fade-wrap mb-2">
+                 either host's wrapper.
+
+                 `overflow-x-auto`/`flex-nowrap`/`-mx-1`/`px-1` below were originally
+                 Tailwind utility classes and looked right in the source. Measured in
+                 the running playground (22.09.2026) against each host's OWN compiled
+                 CSS: `flex-nowrap` compiles in NEITHER host (harmless — `nowrap` is
+                 the flexbox default anyway, so this one was a no-op, not a break).
+                 `-mx-1` and `px-1` are missing from funnels' own bundle too; that one
+                 only *looked* fine in this playground because automations' unrelated
+                 bundle happens to define the same class and every addon's CSS loads
+                 on every CP page here — a customer install with only funnels would
+                 not have that. `overflow-x-auto` was the one load-bearing class
+                 (funnels' own bundle does carry it, by an equally accidental route:
+                 something else in Funnels' own source happens to use it too), so the
+                 shell has been scrolling — just not with the intended edge padding,
+                 and by an argument nobody could see in the source. Same plain-CSS
+                 fix as the fade divs below, for the same reason: see
+                 `.flow-tab-scroll`/`.flow-tab-list-nowrap` in the <style> block. -->
+            <div class="flow-tab-fade-wrap">
                 <div
                     ref="tabScroller"
-                    class="-mx-1 overflow-x-auto px-1"
+                    class="flow-tab-scroll"
                     data-node-library-tabs-shell
                     @scroll="updateTabFade"
                 >
-                    <TabList class="flex-nowrap">
+                    <TabList class="flow-tab-list-nowrap">
                         <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
                             <span class="flex items-center gap-1.5">
                                 {{ group.label }}
@@ -318,6 +335,22 @@ const PaletteItem = defineComponent({
    any custom accent) without a second definition of what that colour is. */
 .flow-tab-fade-wrap {
     position: relative;
+    margin-bottom: 0.5rem; /* was `mb-2` */
+}
+.flow-tab-scroll {
+    /* was `-mx-1 overflow-x-auto px-1`: the negative margin/padding pair lets the
+       scroll strip's hit area bleed 4px past the sidebar's own padding on each
+       side, so the scrollbar and the edge fades line up with the sidebar's visual
+       edge instead of sitting inset from it. */
+    margin-inline: -0.25rem;
+    padding-inline: 0.25rem;
+    overflow-x: auto;
+}
+.flow-tab-list-nowrap {
+    /* was `flex-nowrap`. Belt-and-braces: `nowrap` is the flexbox initial value,
+       so TabList would not actually wrap without this either, but an explicit
+       host-independent rule beats depending on an initial value staying unset. */
+    flex-wrap: nowrap;
 }
 .flow-tab-fade {
     position: absolute;
