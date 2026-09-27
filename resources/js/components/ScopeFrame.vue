@@ -10,17 +10,19 @@
         :data-scope-frame="data.id"
     >
         <div class="sa-scope-frame__bar">
-            <button
-                type="button"
+            <!-- One control: chevron and step count together, core's ghost
+                 button, the way a collapsible section toggles in the CP. -->
+            <Button
                 class="sa-scope-frame__toggle nodrag nopan"
+                variant="ghost"
+                size="xs"
+                :icon="data.collapsed ? 'chevron-right' : 'chevron-down'"
+                :text="data.labels.steps"
                 :aria-expanded="!data.collapsed"
                 :aria-label="data.labels.toggle"
                 :title="data.labels.toggle"
                 @click.stop="toggle"
-            >
-                <Icon :name="data.collapsed ? 'chevron-right' : 'chevron-down'" class="sa-scope-frame__chevron" />
-            </button>
-            <span v-if="data.labels.steps" class="sa-scope-frame__count">{{ data.labels.steps }}</span>
+            />
         </div>
 
         <!-- The way back from each end of the body to the loop, drawn in flow
@@ -60,7 +62,7 @@
 
 <script setup>
 import { computed, inject } from 'vue';
-import { Icon } from '@statamic/cms/ui';
+import { Button } from '@statamic/cms/ui';
 
 const props = defineProps({
     // { id, uid, x, y, width, height, collapsed, paths, labels: { steps, toggle } }

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (1.6.0)
+## 1.6.0 — 2026-09-27
 
 ### Added: scope frames — a loop body drawn as one thing
 
@@ -49,6 +49,12 @@ A host may now tell the canvas which node types open a body instead of continuin
   `.sa-node__title { truncate }` would otherwise win by order.
 - `computeLayout()` gained `insets.left` / `insets.right` and `gaps`; `openOutputsOf()` is exported.
   `scopeLayoutInsets()` and `scopeFrameRects()` are gone (never released).
+- **Fold control.** Chevron and step count are one button, top-left in the frame's head: core's
+  ghost `Button` (`size="xs"`, 24px high) with `aria-expanded` and a label naming the loop.
+- **One "+" size (all hosts).** A step's append "+" is now the same 24px dashed circle as the
+  insert "+" on an edge (was 36px); only the empty canvas's entry "+" stays larger
+  (`.sa-adder__btn--root`). Hosts that keep their own copy of the adder CSS need the same two
+  rules.
 
 ## 1.5.0 — 2026-09-22
 

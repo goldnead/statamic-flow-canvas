@@ -17,12 +17,12 @@
         <button
             type="button"
             class="sa-adder__btn"
-            :class="{ 'sa-adder__btn--pending': isPending }"
+            :class="{ 'sa-adder__btn--pending': isPending, 'sa-adder__btn--root': isRoot }"
             :aria-label="label"
             :aria-pressed="isPending"
             @click="onClick"
         >
-            <Icon name="plus" class="size-4" />
+            <Icon name="plus" :class="isRoot ? 'size-4' : 'size-3'" />
         </button>
 
         <span v-if="isRoot" class="sa-adder__hint">{{ rootLabel }}</span>

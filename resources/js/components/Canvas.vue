@@ -306,7 +306,11 @@ function applyMeasuredHeights(graphNodes) {
     if (changed) measuredHeights.value = next;
 }
 
-const ADDER_HALF = 18; // half the "+" button, to centre it under the handle
+// Half the "+" button, to centre it under the handle. A step's "+" is the same
+// 24px circle as the insert "+" on an edge, so every "+" on a canvas is one
+// size; only the empty canvas's entry "+" is larger.
+const ADDER_HALF = 12;
+const ROOT_ADDER_HALF = 18;
 const ADDER_DROP = 150; // vertical offset from the node top to its adder
 // Abstand zwischen der Unterkante einer gemessenen Karte und ihrem „+".
 // Entspricht dem, was ADDER_DROP bei einer Karte in Normalhoehe uebrig liess.
@@ -454,7 +458,7 @@ function rootAdder() {
         connectable: false,
         deletable: false,
         focusable: false,
-        position: { x: -ADDER_HALF, y: 40 },
+        position: { x: -ROOT_ADDER_HALF, y: 40 },
         // `mode` tells the adder whether it is offering an entry point or an
         // ordinary step; the wording comes from the host.
         data: {
@@ -698,7 +702,7 @@ function scopeFrameNode(frame, rect, paths) {
             labels: {
                 // The owner card is the frame's head, so the frame has no
                 // title of its own; the count and the fold button remain.
-                steps: collapsed ? '' : scopeLabel('steps', frame.count ?? frame.members.length),
+                steps: scopeLabel('steps', frame.count ?? frame.members.length),
                 toggle: scopeLabel(collapsed ? 'expand' : 'collapse', title),
             },
         },

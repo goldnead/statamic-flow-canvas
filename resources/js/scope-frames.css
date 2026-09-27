@@ -43,30 +43,17 @@
     background-color: color-mix(in srgb, var(--sa-scope-color) 4%, transparent);
 }
 
-/* The head strip above the owner card: the fold button and the step count.
- * No title — the owner card right under it is the title. */
+/* The head strip above the owner card: one fold button, chevron and step
+ * count together, top-left. No title — the owner card under it is the title.
+ * The button is core's ghost Button, so its look, hover and focus ring are
+ * core's; all this file adds is that it takes the pointer, which nothing else
+ * on a frame does. */
 .sa-scope-frame__bar {
-    @apply absolute inset-x-0 top-0 flex items-center gap-1.5 pl-1.5 pr-3;
+    @apply absolute inset-x-0 top-0 flex items-center px-1.5;
     height: 32px;
 }
-
-.sa-scope-frame__count {
-    @apply ml-auto shrink-0 text-[11px] font-medium tabular-nums text-gray-500 dark:text-gray-400;
-}
-
-/* The fold button. The only part of a frame that takes the pointer. */
 .sa-scope-frame__toggle {
-    @apply flex size-6 shrink-0 items-center justify-center rounded-md cursor-pointer
-           text-gray-500 dark:text-gray-400 transition-colors
-           hover:text-gray-900 dark:hover:text-gray-100
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500;
     pointer-events: auto;
-}
-.sa-scope-frame__toggle:hover {
-    background-color: color-mix(in srgb, var(--sa-scope-color) 18%, transparent);
-}
-.sa-scope-frame__chevron {
-    @apply size-3.5;
 }
 
 /* The way back to the loop: dashed, 2px, in the accent, with an arrowhead
@@ -104,7 +91,7 @@
     @apply absolute whitespace-nowrap rounded-lg border px-1.5 py-0.5 bg-content-bg
            text-[11px] font-semibold leading-none select-none text-gray-900 dark:text-gray-100;
     border-color: color-mix(in srgb, var(--sa-scope-color) 60%, transparent);
-    top: 18px;
+    top: 12px;
     transform: translateY(-50%);
 }
 .sa-adder__side--right { left: calc(100% + 6px); }

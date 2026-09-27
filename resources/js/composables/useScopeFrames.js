@@ -54,7 +54,7 @@ export const SCOPE_FRAME = {
     BODY_GAP: 40, // row gap inside a body, half the canvas's usual one
     LANE_IN: 20, // the way back's lane, from the frame's left edge
     BOTTOM_LANE: 16, // the bottom lane, from the frame's bottom edge
-    ADDER_DROP: 46, // an open output's "+" below its card (10 gap + 36 button)
+    ADDER_DROP: 34, // an open output's "+" below its card (10 gap + 24 button)
     DONE_LANE: 24, // the continuation's lane, outside the frame's right edge
     DONE_TURN: 30, // below the frame, where the continuation turns in
     BELOW: 112, // frame bottom to the step after the loop
@@ -461,7 +461,7 @@ export function layoutScoped(nodes = [], edges = [], frames = [], options = {}) 
             h: height,
             // An open continuation's "+" hangs below the frame; a frame
             // around this one has to hold it.
-            tail: openKeys.has(f.owner) ? SCOPE_FRAME.DONE_ADDER + 36 : 0,
+            tail: openKeys.has(f.owner) ? SCOPE_FRAME.DONE_ADDER + 24 : 0,
             anchorX: ownerX - left,
             rel,
             rects,
