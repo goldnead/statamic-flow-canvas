@@ -26,6 +26,10 @@
         </button>
 
         <span v-if="isRoot" class="sa-adder__hint">{{ rootLabel }}</span>
+        <!-- Which output this "+" continues, beside it (a Loop's "After
+             loop"). Out of the flow of the column so the button stays centred
+             under its handle. -->
+        <span v-else-if="data.hint" class="sa-adder__side" aria-hidden="true">{{ data.hint }}</span>
     </div>
 </template>
 
@@ -45,7 +49,11 @@ const isRoot = computed(() => !props.data.fromNodeKey);
 // The wording belongs to the host: an automation starts with a trigger, a
 // funnel starts with an entry page, and this component knows neither.
 const rootLabel = computed(() => props.data.rootLabel ?? __('Add a start'));
-const label = computed(() => (isRoot.value ? rootLabel.value : (props.data.stepLabel ?? __('Add a step'))));
+const label = computed(() => {
+    if (isRoot.value) return rootLabel.value;
+    const step = props.data.stepLabel ?? __('Add a step');
+    return props.data.hint ? `${step}: ${props.data.hint}` : step;
+});
 
 const target = computed(() => ({
     kind: 'append',

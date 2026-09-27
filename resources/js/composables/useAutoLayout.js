@@ -89,13 +89,18 @@ export function fractionForOutput(node, output) {
  *   Variablen-Pills auf „Zugang schicken", und „Kontakt anlegen" lag darueber).
  *   Mit den Hoehen bekommt jede Ebene den Abstand, den ihre hoechste Karte
  *   braucht; alle anderen Ebenen bleiben, wo sie waren.
+ * @param {Object<string, {x?: number, top?: number}>} [options.insets]  Room
+ *   around the subtree a node roots: `x` on either side of its columns, `top`
+ *   above the row it sits in. The canvas leaves it around a framed loop body
+ *   (see useScopeFrames.js); without it every column is `COLUMN_SPAN` apart,
+ *   as before.
  * @returns {{ positions: Object, openOutputs: Array, roots: Array }}
  *   positions:   { [node_key]: { x, y } }
  *   openOutputs: [{ from_node_key, from_output }] — outputs with no edge yet
  *                (these are where the append "+" adders are placed)
  *   roots:       node_keys with no incoming edge (top of the flow)
  */
-export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT, nodeHeights = null } = {}) {
+export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT, nodeHeights = null, insets = null } = {}) {
     const positions = {};
     const depthOf = {};
     if (!nodes.length) {
@@ -153,6 +158,17 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
         if (placed.has(key)) return positions[key]?.x ?? cursor;
         placed.add(key);
 
+        // Room around a subtree the host frames (a loop body): the frame and
+        // the line running back outside its left edge must not reach into the
+        // neighbouring column.
+        const insetX = Number(insets?.[key]?.x) || 0;
+        cursor += insetX;
+        const centerX = placeSubtree(key, depth);
+        cursor += insetX;
+        return centerX;
+    }
+
+    function placeSubtree(key, depth) {
         const kids = orderedChildren(key).filter((k) => !placed.has(k));
         let centerX;
         if (!kids.length) {
@@ -185,9 +201,13 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
     // wieder genau `rowHeight` unter der vorigen — dieselbe Rechnung wie zuvor.
     const gap = Math.max(0, rowHeight - LAYOUT.NODE_HEIGHT);
     const tallestAt = new Map();
+    // Extra room above a row that starts a framed body, for its title bar.
+    const extraAbove = new Map();
     let maxDepth = 0;
     for (const [key, depth] of Object.entries(depthOf)) {
         if (depth > maxDepth) maxDepth = depth;
+        const top = Number(insets?.[key]?.top) || 0;
+        if (top > (extraAbove.get(depth) ?? 0)) extraAbove.set(depth, top);
         const measured = nodeHeights?.[key];
         const height = Number.isFinite(measured) && measured > 0 ? measured : LAYOUT.NODE_HEIGHT;
         tallestAt.set(depth, Math.max(tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT, height));
@@ -196,6 +216,7 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
     const yAt = [];
     let y = LAYOUT.ORIGIN_Y;
     for (let depth = 0; depth <= maxDepth; depth++) {
+        y += extraAbove.get(depth) ?? 0;
         yAt[depth] = y;
         y += (tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT) + gap;
     }

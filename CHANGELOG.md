@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased (1.6.0)
+
+### Added: scope frames — a loop body drawn as one thing
+
+A host may now tell the canvas which node types open a body instead of continuing the flow:
+
+```js
+<Canvas :scopes="{ loop: { output: 'loop', continuation: 'done' } }"
+        :scope-labels="{ steps: n => …, collapse: title => …, expand: title => … }"
+        :view-state-key="`my-addon.canvas.${id}.collapsed`" />
+```
+
+- **Frame** behind every body (everything reachable from `output`, stopping at the owner and at
+  whatever `continuation` reaches), titled with the owner's name and step count. Nested bodies
+  nest. A synthetic node at negative `zIndex`, pointer-transparent except its fold button.
+- **Way back:** a dashed line with an arrowhead from each end of a body, outside the frame's left
+  edge, into the side of the owner. Ends inside a nested body go back to the nested owner.
+- **Fold:** the title bar's chevron folds a body into one card; edges into and out of the body are
+  drawn to it. Remembered under `viewStateKey` in localStorage (every access guarded), in memory
+  without one.
+- **Layout:** `computeLayout()` takes `insets` (`{ [nodeKey]: { x, top } }`): room either side of
+  the subtree a node roots and above its row. Without it every position is what it was.
+- A scope's open outputs are named beside their "+" (`data.hint` on the adder, also in its
+  `aria-label`) instead of on the stub edge.
+- Pure logic in `composables/useScopeFrames.js` (`computeScopeFrames`, `collapseScopes`,
+  `scopeLayoutInsets`, `scopeFrameRects`, `scopeReturnPath`), tested in
+  `tests/js/scope-frames.test.js`. Styles in `scope-frames.css`, imported by the host into its
+  `addon-utilities` layer.
+- Nothing changes for a host that passes no `scopes` (funnels).
+
 ## 1.5.0 — 2026-09-22
 
 ### Added: an edge fade on the node library's tab bar, so scroll isn't a guess

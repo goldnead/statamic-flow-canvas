@@ -16,6 +16,7 @@ export { default as PropertiesSection } from './components/PropertiesSection.vue
 
 export { createNodeIcon, NODE_ICON, NODE_KINDS } from './composables/useNodeIcon.js';
 export * from './composables/useAutoLayout.js';
+export * from './composables/useScopeFrames.js';
 export * from './composables/useHistory.js';
 export * from './composables/useAutosave.js';
 export * from './composables/useNodeOutputs.js';
