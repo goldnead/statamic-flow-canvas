@@ -12,9 +12,10 @@ import {
     SCOPE_FRAME,
     collapseScopes,
     computeScopeFrames,
-    scopeFrameRects,
-    scopeLayoutInsets,
+    layoutScoped,
+    scopeDoneRoute,
     scopeReturnPath,
+    visibleScopeFrames,
 } from '../../resources/js/composables/useScopeFrames.js';
 import { LAYOUT, computeLayout } from '../../resources/js/composables/useAutoLayout.js';
 import { clearNodeOutputSpecs, setNodeOutputSpecs } from '../../resources/js/composables/useNodeOutputs.js';
@@ -265,103 +266,184 @@ describe('collapseScopes', () => {
     });
 });
 
-describe('layout with frames', () => {
-    it('leaves room above a body and around its column', () => {
-        const { nodes, edges } = simpleLoop();
-        const frames = computeScopeFrames(nodes, edges, SCOPES);
-        const insets = scopeLayoutInsets(frames);
-
-        expect(insets).toEqual({ b: { x: SCOPE_FRAME.INSET_X, top: SCOPE_FRAME.INSET_TOP } });
-
-        const plain = computeLayout(nodes, edges);
-        const framed = computeLayout(nodes, edges, { insets });
-
-        // Loop and everything above it stay where they were.
-        expect(framed.positions.l.y).toBe(plain.positions.l.y);
-        // The body's first row moves down by the room for the title bar.
-        expect(framed.positions.b.y - plain.positions.b.y).toBe(SCOPE_FRAME.INSET_TOP);
-        // The column after the body moves right by the room on both sides.
-        expect(framed.positions.e.x - plain.positions.e.x).toBe(2 * SCOPE_FRAME.INSET_X);
-    });
-
-    it('lays a graph out exactly as before without insets', () => {
+describe('computeLayout options the frames use', () => {
+    it('lays a graph out exactly as before without insets or gaps', () => {
         const { nodes, edges } = nestedLoops();
-        expect(computeLayout(nodes, edges, { insets: {} })).toEqual(computeLayout(nodes, edges));
+        expect(computeLayout(nodes, edges, { insets: {}, gaps: {} })).toEqual(computeLayout(nodes, edges));
     });
 
-    it('adds up the room for nested bodies', () => {
-        const frames = computeScopeFrames(...Object.values(nestedLoops()), SCOPES);
-        const insets = scopeLayoutInsets(frames);
-        expect(insets.log).toEqual({ x: SCOPE_FRAME.INSET_X, top: SCOPE_FRAME.INSET_TOP });
-        expect(insets.br).toEqual({ x: SCOPE_FRAME.INSET_X, top: SCOPE_FRAME.INSET_TOP });
+    it('keeps left and right room apart', () => {
+        const nodes = [node('r'), node('a'), node('b')];
+        const edges = [edge('r', 'a'), edge('r', 'b')];
+        const plain = computeLayout(nodes, edges).positions;
+        const wide = computeLayout(nodes, edges, { insets: { a: { left: 100, right: 300 } } }).positions;
+
+        expect(wide.a.x - plain.a.x).toBe(100);
+        expect(wide.b.x - plain.b.x).toBe(400);
+    });
+
+    it('takes the largest gap a row asks for', () => {
+        const { nodes, edges } = simpleLoop();
+        const plain = computeLayout(nodes, edges).positions;
+        const tight = computeLayout(nodes, edges, { gaps: { b: 20 } }).positions;
+        const gap = LAYOUT.ROW_HEIGHT - LAYOUT.NODE_HEIGHT;
+
+        expect(tight.c.y - tight.b.y).toBe(LAYOUT.NODE_HEIGHT + 20);
+        expect(tight.b.y).toBe(plain.b.y);
+        expect(tight.d.y - tight.c.y).toBe(LAYOUT.NODE_HEIGHT + gap);
     });
 });
 
-describe('scopeFrameRects', () => {
-    const box = (x, y, width = LAYOUT.NODE_WIDTH, height = LAYOUT.NODE_HEIGHT) => ({ x, y, width, height });
+/** The frames and the layout the canvas draws, for a graph and its folds. */
+function drawn({ nodes, edges }, collapsed = [], options = {}) {
+    const frames = computeScopeFrames(nodes, edges, SCOPES);
+    const view = collapseScopes(nodes, edges, frames, collapsed);
+    const shown = visibleScopeFrames(frames, view, collapsed);
+    return { frames, view, shown, ...layoutScoped(view.nodes, view.edges, shown, options) };
+}
 
-    it('wraps the body cards and leaves room for the title bar', () => {
-        const frames = computeScopeFrames(...Object.values(simpleLoop()), SCOPES);
-        const boxes = { l: box(0, 0), b: box(0, 300), c: box(0, 500), d: box(0, 700), e: box(400, 300) };
-        const { l } = scopeFrameRects(frames, boxes);
+const bottom = (r) => r.y + r.height;
+const inside = (outer, inner) =>
+    inner.x >= outer.x && inner.y >= outer.y
+    && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 
-        expect(l.x).toBe(-SCOPE_FRAME.PAD_X);
-        expect(l.y).toBe(300 - SCOPE_FRAME.TITLE_HEIGHT - SCOPE_FRAME.TITLE_GAP);
-        expect(l.width).toBe(LAYOUT.NODE_WIDTH + 2 * SCOPE_FRAME.PAD_X);
-        expect(l.y + l.height).toBe(700 + LAYOUT.NODE_HEIGHT + SCOPE_FRAME.PAD_BOTTOM);
-        // The owner and the continuation stay outside.
-        expect(l.y).toBeGreaterThan(LAYOUT.NODE_HEIGHT);
-        expect(l.x + l.width).toBeLessThan(400);
+describe('visibleScopeFrames', () => {
+    it('keeps a folded frame, around its owner and the block', () => {
+        const { shown, view } = drawn(simpleLoop(), ['l']);
+        expect(shown).toHaveLength(1);
+        expect(shown[0].collapsed).toBe(true);
+        expect(shown[0].members).toEqual([view.blocks[0].id]);
+        expect(shown[0].terminals).toEqual([view.blocks[0].id]);
+        expect(shown[0].count).toBe(3);
     });
 
-    it('holds the "+" hanging under the last card', () => {
-        const frames = computeScopeFrames(...Object.values(simpleLoop()), SCOPES);
-        const boxes = { l: box(0, 0), b: box(0, 300), c: box(0, 500), d: box(0, 700) };
-        const extras = { d: [{ x: 102, y: 850, width: 36, height: 36 }] };
-        const { l } = scopeFrameRects(frames, boxes, { extras });
-        expect(l.y + l.height).toBe(886 + SCOPE_FRAME.PAD_BOTTOM);
+    it('drops a frame folded away inside a folded one', () => {
+        const { shown } = drawn(nestedLoops(), ['o', 'i']);
+        expect(shown.map((f) => f.id)).toEqual(['o']);
     });
 
-    it('wraps an inner frame and its return lane inside the outer one', () => {
-        const frames = computeScopeFrames(...Object.values(nestedLoops()), SCOPES);
-        const boxes = {
-            o: box(0, 0), log: box(0, 300), i: box(0, 500),
-            br: box(0, 800), yes: box(-160, 1000), no: box(160, 1000),
-            fin: box(400, 800), report: box(800, 300),
-        };
-        const rects = scopeFrameRects(frames, boxes);
-        const { o, i } = rects;
+    it('puts a folded inner block among the outer members', () => {
+        const { shown } = drawn(nestedLoops(), ['i']);
+        const outer = shown.find((f) => f.id === 'o');
+        expect(outer.members).toContain(`${SCOPE_BLOCK_PREFIX}i`);
+        expect(outer.members).not.toContain('br');
+    });
+});
 
-        expect(o.x).toBeLessThanOrEqual(i.x - SCOPE_FRAME.LANE - SCOPE_FRAME.PAD_X);
-        expect(o.y).toBeLessThan(i.y);
-        expect(o.y + o.height).toBeGreaterThan(i.y + i.height);
-        expect(o.x + o.width).toBeGreaterThanOrEqual(400 + LAYOUT.NODE_WIDTH);
+describe('layoutScoped', () => {
+    const box = (p, h = LAYOUT.NODE_HEIGHT) => ({ x: p.x, y: p.y, width: LAYOUT.NODE_WIDTH, height: h });
+
+    it('makes the loop card the head of its frame', () => {
+        const { positions, rects } = drawn(simpleLoop());
+        const frame = rects.l;
+
+        expect(positions.l.y - frame.y).toBe(SCOPE_FRAME.HEAD);
+        expect(inside(frame, box(positions.l))).toBe(true);
+        for (const k of ['b', 'c', 'd']) expect(inside(frame, box(positions[k]))).toBe(true);
+        for (const k of ['t', 'a', 'e']) expect(inside(frame, box(positions[k]))).toBe(false);
     });
 
-    it('draws no frame for a folded body', () => {
-        const frames = computeScopeFrames(...Object.values(simpleLoop()), SCOPES);
-        const boxes = { l: box(0, 0), b: box(0, 300), c: box(0, 500), d: box(0, 700) };
-        expect(scopeFrameRects(frames, boxes, { collapsed: ['l'] })).toEqual({});
+    it('lays out what follows the loop below the whole frame, never beside it', () => {
+        const { positions, rects } = drawn(simpleLoop());
+        expect(positions.e.y).toBe(bottom(rects.l) + SCOPE_FRAME.BELOW);
+        // …straight under the loop card.
+        expect(positions.e.x).toBe(positions.l.x);
+    });
+
+    it('does the same for a nested loop inside its outer body', () => {
+        const { positions, rects } = drawn(nestedLoops());
+        expect(positions.fin.y).toBe(bottom(rects.i) + SCOPE_FRAME.BELOW);
+        expect(positions.report.y).toBe(bottom(rects.o) + SCOPE_FRAME.BELOW);
+        expect(inside(rects.o, rects.i)).toBe(true);
+        expect(inside(rects.o, box(positions.fin))).toBe(true);
+    });
+
+    it('packs a body with half the usual row gap, but not under a branch', () => {
+        const { positions } = drawn(simpleLoop());
+        expect(positions.c.y - positions.b.y).toBe(LAYOUT.NODE_HEIGHT + SCOPE_FRAME.BODY_GAP);
+
+        const nested = drawn(nestedLoops(), [], { outputCount: (k) => (k === 'br' ? 2 : 1) }).positions;
+        expect(nested.yes.y - nested.br.y).toBe(LAYOUT.ROW_HEIGHT);
+    });
+
+    it('starts the body straight under the loop card', () => {
+        const { positions } = drawn(simpleLoop());
+        expect(positions.b.x).toBe(positions.l.x);
+        expect(positions.b.y - positions.l.y).toBe(LAYOUT.NODE_HEIGHT + SCOPE_FRAME.INTO);
+    });
+
+    it('holds an open "+" under the last card inside the frame', () => {
+        const without = drawn(simpleLoop()).rects.l;
+        const withAdder = drawn(simpleLoop(), [], { openKeys: new Set(['d']) }).rects.l;
+        expect(withAdder.height - without.height).toBe(SCOPE_FRAME.ADDER_DROP);
+    });
+
+    it('keeps a neighbouring column clear of a frame', () => {
+        // r splits into a loop and a plain step next to it.
+        const nodes = [node('r', 'branch'), node('l', 'loop'), node('b'), node('x')];
+        const edges = [edge('r', 'l', 'true'), edge('l', 'b', 'loop'), edge('r', 'x', 'false')];
+        const { positions, rects } = drawn({ nodes, edges });
+        expect(positions.x.x).toBeGreaterThanOrEqual(rects.l.x + rects.l.width + SCOPE_FRAME.DONE_LANE);
+    });
+
+    it('draws a folded loop as a small frame with the block inside', () => {
+        const { positions, rects, view } = drawn(simpleLoop(), ['l']);
+        const block = view.blocks[0].id;
+        expect(inside(rects.l, box(positions[block], 60))).toBe(true);
+        expect(positions.e.y).toBe(bottom(rects.l) + SCOPE_FRAME.BELOW);
+    });
+
+    it('survives two loops that hold each other', () => {
+        const nodes = [node('x', 'loop'), node('y', 'loop'), node('s')];
+        const edges = [edge('x', 'y', 'loop'), edge('y', 's', 'loop'), edge('s', 'x')];
+        const { positions } = drawn({ nodes, edges });
+        expect(Object.keys(positions).sort()).toEqual(['s', 'x', 'y']);
     });
 });
 
 describe('scopeReturnPath', () => {
-    const rect = { x: -20, y: 250, width: 280, height: 600 };
+    const rect = { x: -44, y: -36, width: 332, height: 900 };
     const owner = { x: 0, y: 0, width: 240, height: 140 };
+    const lane = rect.x + SCOPE_FRAME.LANE_IN;
 
-    it('runs from the end card, outside the frame, into the side of the loop', () => {
+    it('runs inside its own frame, from the end card into the side of the loop', () => {
         const d = scopeReturnPath(rect, owner, { x: 0, y: 700, width: 240, height: 100 });
-        const lane = rect.x - SCOPE_FRAME.LANE;
 
         expect(d.startsWith('M 0 750')).toBe(true);
         expect(d).toContain(`${lane} `);
-        expect(d.endsWith('L -2 70')).toBe(true);
+        expect(lane).toBeGreaterThan(rect.x);
+        expect(d.endsWith('L -4 70')).toBe(true);
     });
 
-    it('takes the bottom lane from a card that is not in the leftmost column', () => {
+    it('takes the bottom lane, inside the frame, from a card that is not leftmost', () => {
         const d = scopeReturnPath(rect, owner, { x: 300, y: 500, width: 240, height: 140 });
-        const bottom = rect.y + rect.height - SCOPE_FRAME.PAD_BOTTOM / 2;
-        expect(d).toContain(`${bottom}`);
+        expect(d).toContain(`${bottom(rect) - SCOPE_FRAME.BOTTOM_LANE}`);
         expect(d.startsWith('M 300 570')).toBe(true);
+    });
+
+    it('leaves a nested frame where it is told to', () => {
+        const d = scopeReturnPath(rect, owner, { x: 0, y: 300, width: 300, height: 400, anchorY: 672 });
+        expect(d.startsWith('M 0 672')).toBe(true);
+    });
+
+    it('keeps an inner lane and an outer lane apart', () => {
+        const outer = drawn(nestedLoops()).rects;
+        expect(outer.i.x + SCOPE_FRAME.LANE_IN - (outer.o.x + SCOPE_FRAME.LANE_IN)).toBeGreaterThanOrEqual(SCOPE_FRAME.PAD_L);
+    });
+});
+
+describe('scopeDoneRoute', () => {
+    it('runs outside the frame and in under it', () => {
+        const rect = { x: 0, y: 0, width: 300, height: 800 };
+        const { path, pill, insert } = scopeDoneRoute(rect, { x: 260, y: 90 }, { x: 150, y: 912 });
+        const laneX = 300 + SCOPE_FRAME.DONE_LANE;
+        const turnY = 800 + SCOPE_FRAME.DONE_TURN;
+
+        expect(path.startsWith('M 260 90')).toBe(true);
+        expect(path).toContain(`${laneX} `);
+        expect(path.endsWith('L 150 912')).toBe(true);
+        expect(pill.y).toBe(turnY);
+        expect(pill.y).toBeGreaterThan(bottom(rect));
+        expect(insert).toEqual({ x: 150, y: Math.round((turnY + 912) / 2) });
     });
 });

@@ -18,39 +18,43 @@
             <img :src="data.thumbnail" alt="" loading="lazy" decoding="async" draggable="false" />
         </div>
 
-        <!-- Header: icon chip · title/subtitle · meta badge · context menu -->
+        <!-- Header: icon chip · title (the whole remaining width, up to two
+             lines) · context menu. The type, the kind and the validity sit on
+             the line below, so a title is not cut to eight characters by
+             badges it shares a line with. -->
         <div class="sa-node__header">
             <span class="sa-icon-chip">
                 <Icon :name="icon" class="size-4" />
             </span>
 
             <div class="sa-node__heading">
-                <div class="sa-node__title">{{ data.label }}</div>
-                <div class="sa-node__subtitle">{{ data.type }}</div>
+                <div class="sa-node__title" :title="data.label">{{ data.label }}</div>
+                <div class="sa-node__meta">
+                    <span class="sa-node__subtitle">{{ data.type }}</span>
+                    <!-- Inline validity badge (A3): a red "Invalid" / amber
+                         "Incomplete" chip surfaces the node's validation
+                         state, complementing the card ring + the footer. -->
+                    <Badge
+                        v-if="status === 'error'"
+                        color="red"
+                        :text="__('Invalid')"
+                        size="sm"
+                        pill
+                        icon="warning-diamond"
+                    />
+                    <Badge
+                        v-else-if="status === 'warning'"
+                        color="amber"
+                        :text="__('Incomplete')"
+                        size="sm"
+                        pill
+                        icon="warning-diamond"
+                    />
+                    <Badge v-else :color="kindColor" :text="kindLabel" size="sm" pill />
+                </div>
             </div>
 
-            <div class="flex items-center gap-1 shrink-0">
-                <!-- Inline validity badge (A3): a red "Invalid" / amber
-                     "Incomplete" chip surfaces the node's validation state
-                     right in the header, complementing the card ring + the
-                     footer status pill. -->
-                <Badge
-                    v-if="status === 'error'"
-                    color="red"
-                    :text="__('Invalid')"
-                    size="sm"
-                    pill
-                    icon="warning-diamond"
-                />
-                <Badge
-                    v-else-if="status === 'warning'"
-                    color="amber"
-                    :text="__('Incomplete')"
-                    size="sm"
-                    pill
-                    icon="warning-diamond"
-                />
-                <Badge :color="kindColor" :text="kindLabel" size="sm" pill />
+            <div class="flex items-center shrink-0">
                 <Dropdown side="bottom" align="end">
                     <template #trigger>
                         <Button
@@ -147,7 +151,7 @@
         <div class="sa-node__footer">
             <span class="sa-status-dot" :class="statusDotClass" />
             <span class="sa-node__kind-label">{{ statusLabel }}</span>
-            <span v-if="labeledOutputs.length" class="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 text-[10px] font-mono">
+            <span v-if="labeledOutputs.length && !data.hideLegend" class="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 text-[10px] font-mono">
                 <template v-for="(out, i) in labeledOutputs" :key="out.handle">
                     <span class="text-gray-300 dark:text-gray-600" v-if="i > 0">/</span>
                     <span :class="handleLabelClass(out.handle)">{{ out.label }}</span>
@@ -163,12 +167,21 @@
              `id` so edges/adders can address it as `from_output`. -->
         <Handle v-if="!isUnique" type="target" :position="Position.Top" />
         <Handle
-            v-for="(out, i) in outputs"
+            v-for="(out, i) in bottomOutputs"
             :key="out.handle"
             :id="out.handle"
             type="source"
             :position="Position.Bottom"
-            :style="{ left: `${handleY(i, outputs.length) * 100}%` }"
+            :style="{ left: `${handleY(i, bottomOutputs.length) * 100}%` }"
+        />
+        <!-- A framed loop's continuation leaves from the side: it runs round
+             the frame to the step after the loop (see Canvas). -->
+        <Handle
+            v-for="out in sideOutputs"
+            :key="out.handle"
+            :id="out.handle"
+            type="source"
+            :position="Position.Right"
         />
     </div>
 </template>
@@ -277,6 +290,9 @@ const hasInput = computed(() => descriptor.value.hasInput !== false);
 // can be fed straight into the shared outputsFor() used by the layout/canvas.
 const outputs = computed(() => outputsFor(props.data));
 const labeledOutputs = computed(() => outputs.value.filter((o) => o.label));
+const sideHandles = computed(() => new Set(Array.isArray(props.data.sideOutputs) ? props.data.sideOutputs : []));
+const bottomOutputs = computed(() => outputs.value.filter((o) => !sideHandles.value.has(o.handle)));
+const sideOutputs = computed(() => outputs.value.filter((o) => sideHandles.value.has(o.handle)));
 
 function handleLabelClass(handle) {
     if (handle === 'true') return 'sa-handle-label--true';

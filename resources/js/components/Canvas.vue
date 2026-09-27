@@ -60,16 +60,16 @@ import AdderNode from './AdderNode.vue';
 import InsertableEdge from './InsertableEdge.vue';
 import ScopeFrame from './ScopeFrame.vue';
 import ScopeBlock from './ScopeBlock.vue';
-import { computeLayout, LAYOUT, fractionForOutput } from '../composables/useAutoLayout.js';
+import { LAYOUT, fractionForOutput, openOutputsOf, outputsFor } from '../composables/useAutoLayout.js';
 import {
     SCOPE_BLOCK_PREFIX,
     SCOPE_FRAME,
     SCOPE_FRAME_PREFIX,
     collapseScopes,
     computeScopeFrames,
-    scopeFrameRects,
-    scopeLayoutInsets,
+    layoutScoped,
     scopeReturnPath,
+    visibleScopeFrames,
 } from '../composables/useScopeFrames.js';
 import { NODE_ICON, NODE_KINDS, createNodeIcon } from '../composables/useNodeIcon.js';
 
@@ -284,7 +284,9 @@ function applyMeasuredHeights(graphNodes) {
     let changed = false;
 
     for (const node of graphNodes ?? []) {
-        if (!node?.id || isSynthetic(node.id)) continue;
+        // A folded body's block is laid out like a card, so it is measured
+        // like one; adders, stubs and frames are not.
+        if (!node?.id || (isSynthetic(node.id) && !node.id.startsWith(SCOPE_BLOCK_PREFIX))) continue;
         const height = Math.round(node.dimensions?.height ?? 0);
         if (!height) continue;
         if (next[node.id] !== height) {
@@ -295,7 +297,7 @@ function applyMeasuredHeights(graphNodes) {
 
     // Karten, die es nicht mehr gibt, nicht ewig mitschleppen.
     for (const key of Object.keys(next)) {
-        if (!props.nodes.some((n) => n.node_key === key)) {
+        if (!key.startsWith(SCOPE_BLOCK_PREFIX) && !props.nodes.some((n) => n.node_key === key)) {
             delete next[key];
             changed = true;
         }
@@ -358,7 +360,7 @@ function labelFor(handle) {
         .find((m) => m.handle === handle)?.label ?? handle;
 }
 
-function toVueFlowNode(n, position) {
+function toVueFlowNode(n, position, extra = {}) {
     return {
         id: n.node_key,
         type: nodeKind(n.type),
@@ -374,12 +376,17 @@ function toVueFlowNode(n, position) {
             // string, when the host switched pictures off, so the card has no
             // way of drawing a tile it was told not to.
             thumbnail: props.showThumbnails && n.thumbnail ? String(n.thumbnail) : null,
+            // A framed loop's continuation leaves from the card's side
+            // (`sideOutputs`), and a loop names its outputs on its edges, not
+            // in the footer (`hideLegend`). Both only ever set for scopes.
+            ...extra,
         },
     };
 }
 
-function adderNode(open, srcPos, node) {
+function adderNode(open, srcPos, node, place = null) {
     const frac = fractionForOutput(node, open.from_output);
+    const hint = scopeOutputLabel(open);
     return {
         id: `${ADDER_PREFIX}${open.from_node_key}__${open.from_output}`,
         type: 'adder',
@@ -388,7 +395,8 @@ function adderNode(open, srcPos, node) {
         connectable: false,
         deletable: false,
         focusable: false,
-        position: {
+        // A framed loop's open continuation hangs under the frame (`place`).
+        position: place ?? {
             x: Math.round(srcPos.x + frac * LAYOUT.NODE_WIDTH - ADDER_HALF),
             // Per node, not per graph: the row grew for everybody, but only a
             // card that actually shows a picture is taller, and its "+" has to
@@ -409,16 +417,30 @@ function adderNode(open, srcPos, node) {
             stepLabel: props.adderLabels.step,
             // A scope's two outputs are named beside their "+", not on the
             // stub: the stub is ten pixels long, and its label sat on the
-            // owner's own bottom edge.
-            hint: scopeOutputLabel(open),
+            // owner's own bottom edge. The body output's to the left, the
+            // continuation's to the right, so two of them side by side never
+            // cover each other.
+            hint,
+            hintSide: hint && open.from_output === scopeOf(open.from_node_key)?.output ? 'left' : 'right',
         },
     };
 }
 
+/** The scope a node owns (`{ output, continuation }`), or null. */
+function scopeOf(key) {
+    const owner = props.nodes.find((n) => n.node_key === key);
+    return owner ? props.scopes?.[owner.type] ?? null : null;
+}
+
+/** What one of a node's outputs is called, from its own declaration. */
+function outputLabel(key, handle) {
+    const owner = props.nodes.find((n) => n.node_key === key);
+    return owner ? outputsFor(owner).find((o) => o.handle === handle)?.label || null : null;
+}
+
 /** The label of an open scope output (a Loop's `loop` / `done`), else null. */
 function scopeOutputLabel(open) {
-    const owner = props.nodes.find((n) => n.node_key === open.from_node_key);
-    const scope = owner ? props.scopes?.[owner.type] : null;
+    const scope = scopeOf(open.from_node_key);
     if (!scope || !open.label) return null;
     return open.from_output === scope.output || open.from_output === scope.continuation ? open.label : null;
 }
@@ -445,12 +467,27 @@ function rootAdder() {
     };
 }
 
-function toVueFlowEdge(e) {
+function toVueFlowEdge(e, framedRect = null) {
     const out = e.from_output || 'default';
     const branch = out === 'true' || out === 'false';
     const accent = out === 'true'
         ? 'var(--sa-color-success)'
         : out === 'false' ? 'var(--sa-color-failed)' : null;
+
+    // A scope's outputs carry their name as a pill, the way a branch's do.
+    // The continuation of a framed loop takes its own route, round the frame.
+    const scope = scopeOf(e.from_node_key);
+    if (scope && (out === scope.output || out === scope.continuation)) {
+        const route = out === scope.continuation && framedRect ? { rect: framedRect } : null;
+        return {
+            id: `${e.from_node_key}__${out}__${e.to_node_key}`,
+            source: e.from_node_key,
+            target: e.to_node_key,
+            sourceHandle: out,
+            type: 'insertable',
+            data: { pill: outputLabel(e.from_node_key, out), route },
+        };
+    }
 
     return {
         id: `${e.from_node_key}__${out}__${e.to_node_key}`,
@@ -467,8 +504,25 @@ function toVueFlowEdge(e) {
 }
 
 // A short dashed stub from an open output down to its "+" adder.
-function stubEdge(open) {
+function stubEdge(open, framedRect = null) {
     const out = open.from_output;
+    const scope = scopeOf(open.from_node_key);
+    if (scope && out === scope.continuation && framedRect) {
+        // Round the frame, like the connected continuation; its name is
+        // beside the "+" it leads to.
+        return {
+            id: `${STUB_PREFIX}${open.from_node_key}__${out}`,
+            source: open.from_node_key,
+            sourceHandle: out,
+            target: `${ADDER_PREFIX}${open.from_node_key}__${out}`,
+            type: 'insertable',
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            style: { strokeDasharray: '4 4' },
+            data: { route: { rect: framedRect }, noInsert: true },
+        };
+    }
     const branch = out === 'true' || out === 'false';
     const accent = out === 'true'
         ? 'var(--sa-color-success)'
@@ -507,10 +561,12 @@ function scopeEdge(e) {
         source: e.from_node_key,
         target: e.to_node_key,
         sourceHandle: out,
-        type: 'smoothstep',
+        type: 'insertable',
         selectable: false,
         deletable: false,
         focusable: false,
+        // Nothing can be inserted into a folded body from outside it.
+        data: { pill: scopeOf(e.from_node_key) ? outputLabel(e.from_node_key, out) : null, noInsert: true },
     };
 }
 
@@ -528,67 +584,83 @@ function rebuild() {
     const frameIds = new Set(frames.map((f) => f.id));
     const collapsed = collapsedScopes.value.filter((id) => frameIds.has(id));
     const view = collapseScopes(props.nodes, props.edges, frames, collapsed);
-    const open = frames.filter((f) => !collapsed.includes(f.id));
+    const shown = visibleScopeFrames(frames, view, collapsed);
 
-    const insets = scopeLayoutInsets(open, view.hidden);
-    // A folded block sits a little lower than a plain step, so the edge into it
-    // does not bend right where the continuation's label hangs.
-    for (const b of view.blocks) insets[b.id] = { x: 0, top: SCOPE_FRAME.BLOCK_TOP };
-
-    const layout = computeLayout(view.nodes, view.edges, {
-        rowHeight: LAYOUT.ROW_HEIGHT + thumbExtra.value,
-        nodeHeights: measuredHeights.value,
-        insets,
-    });
     const nodeByKey = new Map(props.nodes.map((n) => [n.node_key, n]));
     const blockByKey = new Map(view.blocks.map((b) => [b.id, b]));
-    const openOutputs = layout.openOutputs.filter((o) => !blockByKey.has(o.from_node_key));
+    const openOutputs = openOutputsOf(view.nodes, view.edges).filter((o) => !blockByKey.has(o.from_node_key));
+
+    const layout = layoutScoped(view.nodes, view.edges, shown, {
+        rowHeight: LAYOUT.ROW_HEIGHT + thumbExtra.value,
+        nodeHeights: measuredHeights.value,
+        openKeys: new Set(openOutputs.map((o) => o.from_node_key)),
+        outputCount: (key) => (nodeByKey.has(key) ? outputsFor(nodeByKey.get(key)).length : 1),
+    });
+
+    // owner key → the rectangle of its frame, for every frame drawn.
+    const framedRect = new Map(shown.filter((f) => layout.rects[f.id]).map((f) => [f.owner, layout.rects[f.id]]));
 
     const nodes = [];
     const cards = [];
     for (const n of view.nodes) {
         const position = layout.positions[n.node_key];
         const block = blockByKey.get(n.node_key);
-        cards.push(block ? scopeBlockNode(block, position) : toVueFlowNode(n, position));
+        if (block) {
+            cards.push(scopeBlockNode(block, position));
+            continue;
+        }
+        const scope = props.scopes?.[n.type];
+        const extra = !scope
+            ? {}
+            : framedRect.has(n.node_key)
+                ? { hideLegend: true, sideOutputs: scope.continuation ? [scope.continuation] : [] }
+                : { hideLegend: true };
+        cards.push(toVueFlowNode(n, position, extra));
     }
 
     const adders = [];
-    const extras = {};
     if (!props.nodes.length) {
         adders.push(rootAdder());
     } else {
         for (const o of openOutputs) {
             const srcPos = layout.positions[o.from_node_key];
             if (!srcPos) continue;
-            const adder = adderNode(o, srcPos, nodeByKey.get(o.from_node_key));
-            adders.push(adder);
-            (extras[o.from_node_key] ??= []).push({ x: adder.position.x, y: adder.position.y, width: ADDER_HALF * 2, height: ADDER_HALF * 2 });
+            const rect = framedRect.get(o.from_node_key);
+            const place = rect && o.from_output === scopeOf(o.from_node_key)?.continuation
+                ? { x: srcPos.x + LAYOUT.NODE_WIDTH / 2 - ADDER_HALF, y: rect.y + rect.height + SCOPE_FRAME.DONE_ADDER }
+                : null;
+            adders.push(adderNode(o, srcPos, nodeByKey.get(o.from_node_key), place));
         }
     }
 
+    // The box a way back leaves from: a card, or — for a loop nested at the
+    // end of a body — that loop's whole frame, left near its bottom.
+    const boxOf = (key) => {
+        const rect = framedRect.get(key);
+        if (rect) return { ...rect, anchorY: rect.y + rect.height - 28 };
+        const p = layout.positions[key];
+        return p ? { x: p.x, y: p.y, width: LAYOUT.NODE_WIDTH, height: cardHeight(key, nodeByKey.get(key)) } : null;
+    };
+
     // Frames go first and lowest, so every card and edge is drawn over them.
-    const boxes = {};
-    for (const n of view.nodes) {
-        const p = layout.positions[n.node_key];
-        if (p) boxes[n.node_key] = { x: p.x, y: p.y, width: LAYOUT.NODE_WIDTH, height: cardHeight(n.node_key, nodeByKey.get(n.node_key)) };
-    }
-    const rects = scopeFrameRects(frames, boxes, { collapsed, hidden: view.hidden, extras });
-    for (const f of open) {
-        const rect = rects[f.id];
-        const owner = boxes[f.owner];
-        if (!rect || !owner) continue;
+    for (const f of shown) {
+        const rect = layout.rects[f.id];
+        const p = layout.positions[f.owner];
+        if (!rect || !p) continue;
+        const owner = { x: p.x, y: p.y, width: LAYOUT.NODE_WIDTH, height: cardHeight(f.owner, nodeByKey.get(f.owner)) };
         const paths = f.terminals
-            .filter((key) => boxes[key])
-            .map((key) => scopeReturnPath(rect, owner, boxes[key]));
+            .map((key) => boxOf(key))
+            .filter(Boolean)
+            .map((box) => scopeReturnPath(rect, owner, box));
         nodes.push(scopeFrameNode(f, rect, paths));
     }
 
     nodes.push(...cards, ...adders);
     vfNodes.value = nodes;
 
-    const edges = view.edges.map((e) => (e.synthetic ? scopeEdge(e) : toVueFlowEdge(e)));
+    const edges = view.edges.map((e) => (e.synthetic ? scopeEdge(e) : toVueFlowEdge(e, framedRect.get(e.from_node_key) ?? null)));
     if (props.nodes.length) {
-        for (const o of openOutputs) edges.push(stubEdge(o));
+        for (const o of openOutputs) edges.push(stubEdge(o, framedRect.get(o.from_node_key) ?? null));
     }
     vfEdges.value = edges;
 }
@@ -600,6 +672,7 @@ function ownerTitle(key) {
 
 function scopeFrameNode(frame, rect, paths) {
     const title = ownerTitle(frame.owner);
+    const collapsed = !!frame.collapsed;
     return {
         id: `${SCOPE_FRAME_PREFIX}${frame.id}`,
         type: SCOPE_FRAME_NODE,
@@ -620,11 +693,13 @@ function scopeFrameNode(frame, rect, paths) {
             y: rect.y,
             width: rect.width,
             height: rect.height,
-            title,
+            collapsed,
             paths,
             labels: {
-                steps: scopeLabel('steps', frame.members.length),
-                collapse: scopeLabel('collapse', title),
+                // The owner card is the frame's head, so the frame has no
+                // title of its own; the count and the fold button remain.
+                steps: collapsed ? '' : scopeLabel('steps', frame.count ?? frame.members.length),
+                toggle: scopeLabel(collapsed ? 'expand' : 'collapse', title),
             },
         },
     };
@@ -632,7 +707,15 @@ function scopeFrameNode(frame, rect, paths) {
 
 function scopeBlockNode(block, position) {
     const owner = props.nodes.find((n) => n.node_key === block.frame.owner);
-    const title = ownerTitle(block.frame.owner);
+    const title = scopeLabel('steps', block.frame.members.length);
+    const first = block.frame.entries[0];
+    const last = block.frame.terminals[block.frame.terminals.length - 1];
+    const nameOf = (key) => {
+        const n = props.nodes.find((m) => m.node_key === key);
+        return n ? (n.label || labelFor(n.type)) : null;
+    };
+    // What is folded away, as its first and last step.
+    const summary = [nameOf(first), last && last !== first ? nameOf(last) : null].filter(Boolean).join(' → ');
     return {
         id: block.id,
         type: SCOPE_BLOCK_NODE,
@@ -646,12 +729,9 @@ function scopeBlockNode(block, position) {
             id: block.id,
             frameId: block.frame.id,
             title,
+            summary,
             kind: owner ? nodeKind(owner.type) : fallbackKind.value,
             ownerType: owner?.type ?? null,
-            labels: {
-                steps: scopeLabel('steps', block.frame.members.length),
-                expand: scopeLabel('expand', title),
-            },
         },
     };
 }

@@ -22,6 +22,8 @@
  * Pure and framework-free, like the layout, so it is unit-testable.
  */
 
+import { LAYOUT, computeLayout } from './useAutoLayout.js';
+
 /** Ids of the synthetic nodes the canvas adds for scopes. Never saved. */
 export const SCOPE_FRAME_PREFIX = '__frame__';
 export const SCOPE_BLOCK_PREFIX = '__block__';
@@ -29,27 +31,34 @@ export const SCOPE_BLOCK_PREFIX = '__block__';
 /** The node type a folded body is laid out as. Unknown to every host. */
 export const SCOPE_BLOCK_TYPE = '__scope_block__';
 
-/** Geometry of a frame, in flow coordinates. */
+/** A framed loop, laid out as one wide node by the outer layout. */
+export const SCOPE_UNIT_PREFIX = '__unit__';
+const SCOPE_UNIT_TYPE = '__scope_unit__';
+
+/**
+ * Geometry of a frame, in flow coordinates.
+ *
+ * The owner (the Loop card) is the frame's head: the frame starts just above
+ * it, the body hangs below it, and whatever follows the loop is laid out
+ * underneath the whole frame.
+ */
 export const SCOPE_FRAME = {
-    PAD_X: 20, // frame edge to the outermost card, left and right
-    PAD_BOTTOM: 28, // below the lowest card or "+"; the return lane runs in it
-    TITLE_HEIGHT: 36, // the title bar
-    TITLE_GAP: 12, // title bar to the first card
-    LANE: 18, // how far left of the frame the return line runs
-    /**
-     * Extra room the layout leaves around a body so frames, and the return
-     * line outside a frame's left edge, never reach into a neighbouring
-     * column. The layout's normal column gap is 80px.
-     */
-    INSET_X: 44,
-    /**
-     * Extra room above a body's first row, for the title bar — enough that
-     * the "+" halfway along the edge into the body sits above the frame, not
-     * on its border.
-     */
-    INSET_TOP: 72,
-    /** Extra room above a folded body's block. */
-    BLOCK_TOP: 40,
+    HEAD: 36, // frame top to the owner card: the strip with the fold button
+    PAD_L: 44, // frame edge to the leftmost card; the way back runs in here
+    // Frame edge to the rightmost card. Wider than the continuation's lane
+    // (DONE_LANE), so a nested loop's continuation runs well inside the frame
+    // around it rather than on its border.
+    PAD_R: 48,
+    PAD_BOTTOM: 36, // below the lowest card or "+"; the bottom lane runs in here
+    INTO: 92, // owner card to the first body row: the pill, then the "+"
+    BODY_GAP: 40, // row gap inside a body, half the canvas's usual one
+    LANE_IN: 20, // the way back's lane, from the frame's left edge
+    BOTTOM_LANE: 16, // the bottom lane, from the frame's bottom edge
+    ADDER_DROP: 46, // an open output's "+" below its card (10 gap + 36 button)
+    DONE_LANE: 24, // the continuation's lane, outside the frame's right edge
+    DONE_TURN: 30, // below the frame, where the continuation turns in
+    BELOW: 112, // frame bottom to the step after the loop
+    DONE_ADDER: 60, // frame bottom to an open continuation's "+"
 };
 
 function edgeList(nodes, edges) {
@@ -284,82 +293,201 @@ export function collapseScopes(nodes = [], edges = [], frames = [], collapsed = 
 }
 
 /**
- * The spacing the layout leaves around each visible body: `INSET_X` either
- * side of the subtree its entry roots, `INSET_TOP` above its first row.
+ * The frames as they are drawn with some bodies folded: which frames are
+ * visible at all, and which cards each one holds.
  *
- * @returns {{ insets: Object<string, {x: number, top: number}> }}
+ * A folded frame is still drawn — around its owner and the block that stands
+ * in for its body — so a folded loop still reads as a loop. A frame folded
+ * inside a folded one is not drawn: its owner is hidden with the outer body.
+ *
+ * @param {Array} frames  from computeScopeFrames()
+ * @param {{ hidden: Set<string>, blocks: Array }} view  from collapseScopes()
+ * @param {Iterable<string>} collapsed
+ * @returns {Array<{ id, owner, output, members: string[], entries: string[], terminals: string[], parent, depth, collapsed: boolean, count: number }>}
  */
-export function scopeLayoutInsets(frames = [], hidden = new Set()) {
-    const insets = {};
+export function visibleScopeFrames(frames = [], view = { hidden: new Set(), blocks: [] }, collapsed = []) {
+    const folded = new Set(collapsed);
+    const blockOf = new Map(view.blocks.map((b) => [b.frame.id, b.id]));
+    const result = [];
+
     for (const f of frames) {
-        if (hidden.has(f.owner)) continue;
-        for (const entry of f.entries) {
-            if (hidden.has(entry)) continue;
-            const prev = insets[entry] ?? { x: 0, top: 0 };
-            insets[entry] = {
-                x: prev.x + SCOPE_FRAME.INSET_X,
-                top: prev.top + SCOPE_FRAME.INSET_TOP,
-            };
+        if (view.hidden.has(f.owner)) continue;
+        const count = f.members.length;
+
+        if (folded.has(f.id) && blockOf.has(f.id)) {
+            const block = blockOf.get(f.id);
+            result.push({ ...f, members: [block], entries: [block], terminals: [block], collapsed: true, count });
+            continue;
         }
+
+        const members = f.members.filter((k) => !view.hidden.has(k));
+        for (const g of frames) {
+            if (g !== f && blockOf.has(g.id) && members.includes(g.owner)) members.push(blockOf.get(g.id));
+        }
+        result.push({
+            ...f,
+            members,
+            entries: f.entries.filter((k) => !view.hidden.has(k)),
+            terminals: f.terminals.filter((k) => !view.hidden.has(k)),
+            collapsed: false,
+            count,
+        });
     }
-    return insets;
+
+    return result;
 }
 
 /**
- * The rectangle of every visible, unfolded frame, innermost first so an outer
- * frame can wrap the inner ones.
+ * Lays the graph out with every frame as one compound node.
  *
- * @param {Array} frames
- * @param {Object<string, {x:number,y:number,width:number,height:number}>} boxes
- *   The drawn box of each visible card. `extras[key]` may add further boxes
- *   that belong to a card — its "+" adders hanging below it.
- * @param {{ collapsed?: Iterable<string>, hidden?: Set<string>, extras?: Object<string, Array> }} [options]
- * @returns {Object<string, {x:number,y:number,width:number,height:number}>}
+ * Innermost first, each frame's body is laid out on its own, with a compact
+ * row gap; the owner sits on top of it, centred over the body's entry, and
+ * the frame is the box around both. In the layout one level up the frame is a
+ * single wide, tall node: whatever follows the loop — its continuation, and
+ * any edge leaving the body — hangs below the whole frame instead of beside
+ * its content, and neighbouring columns keep clear of it.
+ *
+ * @param {Array} nodes   the graph as drawn (collapseScopes().nodes)
+ * @param {Array} edges   likewise
+ * @param {Array} frames  from visibleScopeFrames()
+ * @param {{ nodeHeights?: Object<string, number>, rowHeight?: number,
+ *           openKeys?: Set<string>, outputCount?: (key: string) => number }} [options]
+ *   `openKeys`: cards with an open output, whose "+" hangs below them.
+ *   `outputCount`: how many outputs a card has; a row under a card that
+ *   branches keeps the usual gap, for the branch pills.
+ * @returns {{ positions: Object<string, {x:number,y:number}>, rects: Object<string, {x:number,y:number,width:number,height:number}> }}
  */
-export function scopeFrameRects(frames = [], boxes = {}, { collapsed = [], hidden = new Set(), extras = {} } = {}) {
-    const folded = new Set(collapsed);
-    const rects = {};
-    const ordered = [...frames].sort((a, b) => b.depth - a.depth);
+export function layoutScoped(nodes = [], edges = [], frames = [], options = {}) {
+    const { nodeHeights = {}, rowHeight = LAYOUT.ROW_HEIGHT, openKeys = new Set(), outputCount = () => 1 } = options;
+    const byKey = new Map(nodes.map((n) => [n.node_key, n]));
+    const defaultGap = Math.max(0, rowHeight - LAYOUT.NODE_HEIGHT);
+    const heightOf = (key) => {
+        const measured = nodeHeights?.[key];
+        return Number.isFinite(measured) && measured > 0 ? measured : LAYOUT.NODE_HEIGHT;
+    };
+
+    const repOf = new Map(); // node key → the outermost unit built so far that holds it
+    const rep = (key) => repOf.get(key) ?? key;
+    const units = new Map(); // unit key → { w, h, tail, anchorX, rel, rects }
+
+    function layoutKeys(keys, gapFor) {
+        const set = new Set(keys);
+        const subNodes = keys.map((k) => (units.has(k) ? { node_key: k, type: SCOPE_UNIT_TYPE, config: {} } : byKey.get(k)));
+        const subEdges = [];
+        const seen = new Set();
+        for (const e of edges) {
+            const a = rep(e.from_node_key);
+            const b = rep(e.to_node_key);
+            if (a === b || !set.has(a) || !set.has(b)) continue;
+            const out = units.has(a) ? 'default' : (e.from_output || 'default');
+            const sig = `${a}::${out}::${b}`;
+            if (seen.has(sig)) continue;
+            seen.add(sig);
+            subEdges.push({ from_node_key: a, from_output: out, to_node_key: b });
+        }
+
+        const heights = {};
+        const insets = {};
+        const gaps = {};
+        for (const k of keys) {
+            const unit = units.get(k);
+            if (unit) {
+                heights[k] = unit.h;
+                insets[k] = { left: unit.anchorX, right: unit.w - unit.anchorX - LAYOUT.NODE_WIDTH };
+                gaps[k] = SCOPE_FRAME.BELOW;
+            } else {
+                heights[k] = heightOf(k);
+                gaps[k] = gapFor(k);
+            }
+        }
+
+        return computeLayout(subNodes, subEdges, { rowHeight, nodeHeights: heights, insets, gaps }).positions;
+    }
+
+    const ordered = frames.filter((f) => byKey.has(f.owner)).sort((a, b) => b.depth - a.depth);
 
     for (const f of ordered) {
-        if (folded.has(f.id) || hidden.has(f.owner)) continue;
+        if (repOf.has(f.owner)) continue; // two frames holding each other: the outer one wins
+        const members = [...new Set(f.members.filter((k) => byKey.has(k)).map(rep))].filter((k) => k !== f.owner);
+        if (!members.length) continue;
+
+        const entries = [...new Set(f.entries.map(rep))].filter((k) => members.includes(k));
+        const keys = [...new Set([...entries, ...members])];
+        const positions = layoutKeys(keys, (k) => (outputCount(k) > 1 ? defaultGap : SCOPE_FRAME.BODY_GAP));
+
         let minX = Infinity;
-        let minY = Infinity;
         let maxX = -Infinity;
-        let maxY = -Infinity;
-        const take = (b) => {
-            if (!b) return;
-            minX = Math.min(minX, b.x);
-            minY = Math.min(minY, b.y);
-            maxX = Math.max(maxX, b.x + b.width);
-            maxY = Math.max(maxY, b.y + b.height);
-        };
-        for (const key of f.members) {
-            if (hidden.has(key)) continue;
-            take(boxes[key]);
-            for (const extra of extras[key] ?? []) take(extra);
-        }
-        for (const inner of frames) {
-            // An inner frame's return line runs outside its left edge, so
-            // the outer frame has to hold that lane as well.
-            if (inner.parent === f.id && rects[inner.id]) {
-                const r = rects[inner.id];
-                take({ ...r, x: r.x - SCOPE_FRAME.LANE, width: r.width + SCOPE_FRAME.LANE });
-            }
-            if (inner.parent === f.id && folded.has(inner.id)) take(boxes[`${SCOPE_BLOCK_PREFIX}${inner.id}`]);
+        let maxY = 0;
+        for (const k of keys) {
+            const p = positions[k];
+            if (!p) continue;
+            const unit = units.get(k);
+            const left = unit ? p.x - unit.anchorX : p.x;
+            const width = unit ? unit.w : LAYOUT.NODE_WIDTH;
+            const height = unit ? unit.h + unit.tail : heightOf(k) + (openKeys.has(k) ? SCOPE_FRAME.ADDER_DROP : 0);
+            minX = Math.min(minX, left);
+            maxX = Math.max(maxX, left + width);
+            maxY = Math.max(maxY, p.y + height);
         }
         if (!Number.isFinite(minX)) continue;
 
-        const top = minY - SCOPE_FRAME.TITLE_HEIGHT - SCOPE_FRAME.TITLE_GAP;
-        rects[f.id] = {
-            x: Math.round(minX - SCOPE_FRAME.PAD_X),
-            y: Math.round(top),
-            width: Math.round(maxX - minX + 2 * SCOPE_FRAME.PAD_X),
-            height: Math.round(maxY - top + SCOPE_FRAME.PAD_BOTTOM),
-        };
+        const entryX = entries.map((k) => positions[k]?.x).filter(Number.isFinite);
+        const ownerX = entryX.length ? (Math.min(...entryX) + Math.max(...entryX)) / 2 : minX;
+        const left = Math.min(minX, ownerX) - SCOPE_FRAME.PAD_L;
+        const right = Math.max(maxX, ownerX + LAYOUT.NODE_WIDTH) + SCOPE_FRAME.PAD_R;
+        const bodyY = SCOPE_FRAME.HEAD + heightOf(f.owner) + SCOPE_FRAME.INTO;
+        const height = bodyY + maxY + SCOPE_FRAME.PAD_BOTTOM;
+
+        const rel = new Map([[f.owner, { x: ownerX - left, y: SCOPE_FRAME.HEAD }]]);
+        const rects = new Map();
+        for (const k of keys) {
+            const p = positions[k];
+            if (!p) continue;
+            const unit = units.get(k);
+            if (!unit) {
+                rel.set(k, { x: p.x - left, y: p.y + bodyY });
+                continue;
+            }
+            const ox = p.x - unit.anchorX - left;
+            const oy = p.y + bodyY;
+            for (const [kk, r] of unit.rel) rel.set(kk, { x: r.x + ox, y: r.y + oy });
+            for (const [id, r] of unit.rects) rects.set(id, { ...r, x: r.x + ox, y: r.y + oy });
+        }
+        rects.set(f.id, { x: 0, y: 0, width: Math.round(right - left), height: Math.round(height) });
+
+        const key = `${SCOPE_UNIT_PREFIX}${f.id}`;
+        units.set(key, {
+            w: right - left,
+            h: height,
+            // An open continuation's "+" hangs below the frame; a frame
+            // around this one has to hold it.
+            tail: openKeys.has(f.owner) ? SCOPE_FRAME.DONE_ADDER + 36 : 0,
+            anchorX: ownerX - left,
+            rel,
+            rects,
+        });
+        for (const k of rel.keys()) repOf.set(k, key);
     }
 
-    return rects;
+    const top = [...new Set(nodes.map((n) => rep(n.node_key)))];
+    const placed = layoutKeys(top, () => defaultGap);
+
+    const positions = {};
+    const rects = {};
+    for (const k of top) {
+        const p = placed[k];
+        if (!p) continue;
+        const unit = units.get(k);
+        if (!unit) {
+            positions[k] = { x: p.x, y: p.y };
+            continue;
+        }
+        const ox = p.x - unit.anchorX;
+        for (const [kk, r] of unit.rel) positions[kk] = { x: Math.round(r.x + ox), y: Math.round(r.y + p.y) };
+        for (const [id, r] of unit.rects) rects[id] = { ...r, x: Math.round(r.x + ox), y: Math.round(r.y + p.y) };
+    }
+
+    return { positions, rects };
 }
 
 function roundedPath(points, radius = 10) {
@@ -388,31 +516,64 @@ function roundedPath(points, radius = 10) {
  * The dashed way back from the end of a body to its owner, as SVG path data in
  * flow coordinates.
  *
- * It leaves each end card on its left edge, runs down the frame's bottom lane
- * when the card is not in the body's leftmost column (so it never cuts across
- * a neighbouring branch), goes up outside the frame's left edge and enters the
- * owner from the left, pointing at it. Several ends share the same lane, which
- * reads as they should: they all go back to the same place.
+ * It runs inside its own frame, in the frame's left padding: out of the left
+ * edge of each end card (along the frame's bottom lane first when the card is
+ * not in the leftmost column, so it never cuts across a neighbouring branch),
+ * up the lane and into the owner's left edge. A nested frame sits inside its
+ * parent's padding, so an inner lane and an outer lane are always
+ * `PAD_L` apart and never meet. Several ends share one lane, which reads as it
+ * should: they all go back to the same place.
  *
  * @param {{x:number,y:number,width:number,height:number}} rect   the frame
  * @param {{x:number,y:number,width:number,height:number}} owner  the owner's card
- * @param {{x:number,y:number,width:number,height:number}} end    the end card
+ * @param {{x:number,y:number,width:number,height:number,anchorY?:number}} end
+ *   the end card, or a nested frame (then `anchorY` says where to leave it)
  * @returns {string}
  */
 export function scopeReturnPath(rect, owner, end) {
-    const laneX = rect.x - SCOPE_FRAME.LANE;
+    const laneX = rect.x + SCOPE_FRAME.LANE_IN;
     const ownerY = Math.round(owner.y + Math.min(owner.height, 140) / 2);
-    const endY = Math.round(end.y + Math.min(end.height, 140) / 2);
-    const leftmost = end.x - rect.x <= SCOPE_FRAME.PAD_X + 1;
+    const endY = Math.round(end.anchorY ?? end.y + Math.min(end.height, 140) / 2);
+    const leftmost = end.x - rect.x <= SCOPE_FRAME.PAD_L + 1;
 
     const points = [{ x: end.x, y: endY }];
     if (!leftmost) {
-        const bottom = rect.y + rect.height - SCOPE_FRAME.PAD_BOTTOM / 2;
-        points.push({ x: end.x - 14, y: endY }, { x: end.x - 14, y: bottom }, { x: laneX, y: bottom });
+        const bottom = rect.y + rect.height - SCOPE_FRAME.BOTTOM_LANE;
+        points.push({ x: end.x - 16, y: endY }, { x: end.x - 16, y: bottom }, { x: laneX, y: bottom });
     } else {
         points.push({ x: laneX, y: endY });
     }
-    points.push({ x: laneX, y: ownerY }, { x: owner.x - 2, y: ownerY });
+    points.push({ x: laneX, y: ownerY }, { x: owner.x - 4, y: ownerY });
 
     return roundedPath(points);
+}
+
+/**
+ * Where the continuation of a framed loop runs: out of the owner's side, down
+ * outside the frame's right edge, and in under the frame to the step after
+ * the loop — so that step reads as coming after the loop, not beside it.
+ *
+ * @param {{x:number,y:number,width:number,height:number}} rect  the frame
+ * @param {{x:number,y:number}} source  the owner's side handle
+ * @param {{x:number,y:number}} target  the top of the next step (or its "+")
+ * @returns {{ path: string, pill: {x:number,y:number}, insert: {x:number,y:number} }}
+ *   the path, where its label sits (under the frame) and where its "+" sits
+ *   (on the last stretch into the next step)
+ */
+export function scopeDoneRoute(rect, source, target) {
+    const laneX = rect.x + rect.width + SCOPE_FRAME.DONE_LANE;
+    const turnY = rect.y + rect.height + SCOPE_FRAME.DONE_TURN;
+    const points = [
+        { x: source.x, y: source.y },
+        { x: laneX, y: source.y },
+        { x: laneX, y: turnY },
+        { x: target.x, y: turnY },
+        { x: target.x, y: target.y },
+    ];
+
+    return {
+        path: roundedPath(points, 12),
+        pill: { x: Math.round((laneX + target.x) / 2), y: turnY },
+        insert: { x: target.x, y: Math.round((turnY + target.y) / 2) },
+    };
 }

@@ -1,5 +1,5 @@
 /*
- * Scope frames: a loop body drawn as one thing (see useScopeFrames.js).
+ * Scope frames: a loop drawn as one thing (see useScopeFrames.js).
  *
  * Imported the same way as canvas.css, from inside the host's
  * `addon-utilities` layer and after `@statamic/cms/tailwind.css`:
@@ -15,53 +15,46 @@
  * would never be compiled.
  *
  * The tint is the host's logic accent — a loop is a logic node, and the frame
- * reads as belonging to the card that owns it. A host without one gets amber.
+ * reads as belonging to the card at its head. A host without one gets amber.
  */
 
 .sa-scope-frame,
-.sa-scope-block {
+.sa-scope-block,
+.sa-edge-branch--scope,
+.sa-adder__side {
     --sa-scope-color: var(--sa-color-logic, var(--color-amber-500, #f59e0b));
 }
 
 /* Vue Flow wraps every node in its own box; for a frame that box must not
- * catch the pointer, or panning would stop wherever a body is drawn. */
+ * catch the pointer, or panning would stop wherever a loop is drawn. */
 .sa-scope-frame-node {
     pointer-events: none;
 }
 
 .sa-scope-frame {
     @apply relative rounded-2xl border;
-    border-color: color-mix(in srgb, var(--sa-scope-color) 38%, transparent);
+    border-color: color-mix(in srgb, var(--sa-scope-color) 42%, transparent);
     background-color: color-mix(in srgb, var(--sa-scope-color) 5%, transparent);
 }
-/* On a dark ground the same share of amber turns muddy, and nested frames
- * add up; less of it reads as the same tint. */
+/* On a dark ground a fill of the same share turns muddy and nested frames add
+ * up, so less fill; the border is what has to hold, so more of it. */
 .dark .sa-scope-frame {
-    border-color: color-mix(in srgb, var(--sa-scope-color) 28%, transparent);
-    background-color: color-mix(in srgb, var(--sa-scope-color) 3%, transparent);
-}
-.dark .sa-scope-frame__bar {
-    border-bottom-color: color-mix(in srgb, var(--sa-scope-color) 18%, transparent);
-    background-color: color-mix(in srgb, var(--sa-scope-color) 5%, transparent);
+    border-color: color-mix(in srgb, var(--sa-scope-color) 60%, transparent);
+    background-color: color-mix(in srgb, var(--sa-scope-color) 4%, transparent);
 }
 
+/* The head strip above the owner card: the fold button and the step count.
+ * No title — the owner card right under it is the title. */
 .sa-scope-frame__bar {
-    @apply absolute inset-x-0 top-0 flex items-center gap-1.5 pl-1.5 pr-3 rounded-t-2xl;
-    height: 36px;
-    border-bottom: 1px solid color-mix(in srgb, var(--sa-scope-color) 22%, transparent);
-    background-color: color-mix(in srgb, var(--sa-scope-color) 7%, transparent);
-}
-
-.sa-scope-frame__title {
-    @apply min-w-0 truncate text-xs font-semibold text-gray-800 dark:text-gray-100;
+    @apply absolute inset-x-0 top-0 flex items-center gap-1.5 pl-1.5 pr-3;
+    height: 32px;
 }
 
 .sa-scope-frame__count {
     @apply ml-auto shrink-0 text-[11px] font-medium tabular-nums text-gray-500 dark:text-gray-400;
 }
 
-/* The fold button, in the frame's title bar and on a folded block. The only
- * part of a frame that takes the pointer. */
+/* The fold button. The only part of a frame that takes the pointer. */
 .sa-scope-frame__toggle {
     @apply flex size-6 shrink-0 items-center justify-center rounded-md cursor-pointer
            text-gray-500 dark:text-gray-400 transition-colors
@@ -76,36 +69,46 @@
     @apply size-3.5;
 }
 
-/* The way back to the loop: dashed, in the accent, with an arrowhead into
- * the owner's left edge. Drawn, not an edge: it cannot be selected, deleted
- * or saved, and nothing that reads the graph ever sees it. */
+/* The way back to the loop: dashed, 2px, in the accent, with an arrowhead
+ * into the loop card. Drawn, not an edge: it cannot be selected, deleted or
+ * saved, and nothing that reads the graph ever sees it. */
 .sa-scope-frame__return {
     @apply absolute left-0 top-0 overflow-visible pointer-events-none;
 }
 .sa-scope-frame__return-path {
     fill: none;
-    stroke: color-mix(in srgb, var(--sa-scope-color) 80%, transparent);
-    stroke-width: 1.5;
-    stroke-dasharray: 5 4;
+    stroke: color-mix(in srgb, var(--sa-scope-color) 85%, transparent);
+    stroke-width: 2;
+    stroke-dasharray: 6 4;
+    stroke-linecap: round;
 }
 .sa-scope-frame__arrow {
-    fill: color-mix(in srgb, var(--sa-scope-color) 80%, transparent);
+    fill: color-mix(in srgb, var(--sa-scope-color) 85%, transparent);
+}
+.dark .sa-scope-frame__return-path { stroke: var(--sa-scope-color); }
+.dark .sa-scope-frame__arrow { fill: var(--sa-scope-color); }
+
+/* A loop's outputs, named on their edges like a branch's "If true". */
+.sa-edge-branch--scope {
+    @apply text-gray-900 dark:text-gray-100 whitespace-nowrap;
+    border-color: color-mix(in srgb, var(--sa-scope-color) 60%, transparent);
 }
 
-/* The name of a scope output beside its "+" (a Loop's "After loop" when
- * nothing follows the loop yet). Absolutely placed so the button stays
- * centred under the handle it belongs to. */
+/* The name of an open loop output beside its "+". Absolutely placed so the
+ * button stays centred under the handle it belongs to; the body output's
+ * name to the left, the continuation's to the right. */
 .sa-adder:has(> .sa-adder__side) {
     position: relative;
 }
 .sa-adder__side {
-    @apply absolute whitespace-nowrap rounded-lg border px-1.5 py-0.5
-           text-[11px] font-semibold leading-none select-none
-           border-gray-300 dark:border-gray-600 bg-content-bg text-gray-500 dark:text-gray-400;
-    left: calc(100% + 6px);
+    @apply absolute whitespace-nowrap rounded-lg border px-1.5 py-0.5 bg-content-bg
+           text-[11px] font-semibold leading-none select-none text-gray-900 dark:text-gray-100;
+    border-color: color-mix(in srgb, var(--sa-scope-color) 60%, transparent);
     top: 18px;
     transform: translateY(-50%);
 }
+.sa-adder__side--right { left: calc(100% + 6px); }
+.sa-adder__side--left { right: calc(100% + 6px); }
 
 /* On the minimap a frame is an outline, not a block over its own cards. */
 .vue-flow__minimap-node.sa-minimap-scope {
@@ -130,8 +133,8 @@
 .sa-scope-block__icon {
     @apply size-4;
 }
-.sa-scope-block__count {
-    @apply text-[11px] leading-tight text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums;
+.sa-scope-block__summary {
+    @apply text-[11px] leading-tight text-gray-500 dark:text-gray-400 mt-0.5 truncate;
 }
 .sa-scope-block .vue-flow__handle {
     @apply opacity-0;

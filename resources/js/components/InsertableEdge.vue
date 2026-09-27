@@ -2,20 +2,22 @@
     <!-- Custom edge for real connections. Draws the smoothstep path and hangs a
          "+" insert button at its midpoint (Zapier "insert between steps"). For
          branch outputs it also shows the token-coloured "If true"/"If false"
-         pill near the split. -->
+         pill near the split; a loop's outputs get the same kind of pill with
+         their own names. A framed loop's continuation (`data.route`) runs
+         round the frame instead, and its pill and "+" sit under the frame. -->
     <BaseEdge :id="id" :path="path" :style="style" />
 
     <EdgeLabelRenderer>
         <div
-            v-if="data && data.branch"
+            v-if="pillText"
             class="sa-edge-branch nodrag nopan"
-            :class="data.branch === 'true' ? 'sa-edge-branch--true' : 'sa-edge-branch--false'"
+            :class="pillClass"
             :style="pillTransform"
         >
-            {{ data.branch === 'true' ? __('If true') : __('If false') }}
+            {{ pillText }}
         </div>
 
-        <div class="sa-edge-insert nodrag nopan" :style="insertTransform">
+        <div v-if="!data?.noInsert" class="sa-edge-insert nodrag nopan" :style="insertTransform">
             <button
                 type="button"
                 class="sa-edge-insert__btn"
@@ -34,6 +36,7 @@
 import { computed, inject } from 'vue';
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, Position } from '@vue-flow/core';
 import { Icon } from '@statamic/cms/ui';
+import { scopeDoneRoute } from '../composables/useScopeFrames.js';
 
 const props = defineProps({
     id: { type: String, required: true },
@@ -50,8 +53,14 @@ const props = defineProps({
     data: { type: Object, default: () => ({}) },
 });
 
-const startPick = inject('saStartPick');
-const pendingTarget = inject('saPendingTarget');
+const startPick = inject('saStartPick', () => {});
+const pendingTarget = inject('saPendingTarget', computed(() => null));
+
+const route = computed(() => {
+    const rect = props.data?.route?.rect;
+    if (!rect) return null;
+    return scopeDoneRoute(rect, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
+});
 
 const pathData = computed(() =>
     getSmoothStepPath({
@@ -64,15 +73,28 @@ const pathData = computed(() =>
     }),
 );
 
-const path = computed(() => pathData.value[0]);
+const path = computed(() => route.value?.path ?? pathData.value[0]);
+const insertPoint = computed(() => route.value?.insert ?? { x: pathData.value[1], y: pathData.value[2] });
 const insertTransform = computed(
-    () => ({ transform: `translate(-50%, -50%) translate(${pathData.value[1]}px, ${pathData.value[2]}px)` }),
+    () => ({ transform: `translate(-50%, -50%) translate(${insertPoint.value.x}px, ${insertPoint.value.y}px)` }),
 );
 
-// Branch pill sits just below the source handle so it reads as the split label.
-const pillTransform = computed(
-    () => ({ transform: `translate(-50%, -50%) translate(${props.sourceX}px, ${props.sourceY + 20}px)` }),
-);
+const pillText = computed(() => {
+    if (props.data?.branch) return props.data.branch === 'true' ? __('If true') : __('If false');
+    return props.data?.pill || null;
+});
+
+const pillClass = computed(() => {
+    if (props.data?.branch) return props.data.branch === 'true' ? 'sa-edge-branch--true' : 'sa-edge-branch--false';
+    return 'sa-edge-branch--scope';
+});
+
+// A pill sits just below the source handle so it reads as the split label;
+// on a routed continuation, on its run under the frame.
+const pillTransform = computed(() => {
+    const at = route.value?.pill ?? { x: props.sourceX, y: props.sourceY + 20 };
+    return { transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` };
+});
 
 const edgeTarget = computed(() => ({
     kind: 'insert',

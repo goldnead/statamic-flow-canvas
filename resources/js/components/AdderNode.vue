@@ -29,7 +29,12 @@
         <!-- Which output this "+" continues, beside it (a Loop's "After
              loop"). Out of the flow of the column so the button stays centred
              under its handle. -->
-        <span v-else-if="data.hint" class="sa-adder__side" aria-hidden="true">{{ data.hint }}</span>
+        <span
+            v-else-if="data.hint"
+            class="sa-adder__side"
+            :class="data.hintSide === 'left' ? 'sa-adder__side--left' : 'sa-adder__side--right'"
+            aria-hidden="true"
+        >{{ data.hint }}</span>
     </div>
 </template>
 

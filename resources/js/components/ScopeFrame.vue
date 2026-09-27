@@ -1,10 +1,11 @@
 <template>
-    <!-- The frame behind a loop body (see useScopeFrames.js). A synthetic
-         node, below every card and edge, never saved. Only the fold button
-         takes the pointer; the rest lets panning and clicks through to the
-         canvas and the cards on top of it. -->
+    <!-- The frame around a loop (see useScopeFrames.js): its owner card is the
+         head, its body hangs below. A synthetic node, below every card and
+         edge, never saved. Only the fold button takes the pointer; the rest
+         lets panning and clicks through to the canvas and the cards on top. -->
     <div
         class="sa-scope-frame"
+        :class="{ 'sa-scope-frame--collapsed': data.collapsed }"
         :style="{ width: `${data.width}px`, height: `${data.height}px` }"
         :data-scope-frame="data.id"
     >
@@ -12,15 +13,14 @@
             <button
                 type="button"
                 class="sa-scope-frame__toggle nodrag nopan"
-                :aria-expanded="true"
-                :aria-label="data.labels.collapse"
-                :title="data.labels.collapse"
+                :aria-expanded="!data.collapsed"
+                :aria-label="data.labels.toggle"
+                :title="data.labels.toggle"
                 @click.stop="toggle"
             >
-                <Icon name="chevron-down" class="sa-scope-frame__chevron" />
+                <Icon :name="data.collapsed ? 'chevron-right' : 'chevron-down'" class="sa-scope-frame__chevron" />
             </button>
-            <span class="sa-scope-frame__title">{{ data.title }}</span>
-            <span class="sa-scope-frame__count">{{ data.labels.steps }}</span>
+            <span v-if="data.labels.steps" class="sa-scope-frame__count">{{ data.labels.steps }}</span>
         </div>
 
         <!-- The way back from each end of the body to the loop, drawn in flow
@@ -36,13 +36,13 @@
                 <marker
                     :id="markerId"
                     viewBox="0 0 10 10"
-                    refX="9"
+                    refX="8"
                     refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
+                    markerWidth="5"
+                    markerHeight="5"
                     orient="auto-start-reverse"
                 >
-                    <path d="M 0 1 L 9 5 L 0 9 z" class="sa-scope-frame__arrow" />
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="sa-scope-frame__arrow" />
                 </marker>
             </defs>
             <g :transform="`translate(${-data.x} ${-data.y})`">
@@ -63,7 +63,7 @@ import { computed, inject } from 'vue';
 import { Icon } from '@statamic/cms/ui';
 
 const props = defineProps({
-    // { id, x, y, width, height, title, paths, labels: { steps, collapse } }
+    // { id, uid, x, y, width, height, collapsed, paths, labels: { steps, toggle } }
     data: { type: Object, required: true },
 });
 
