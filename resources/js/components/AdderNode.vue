@@ -17,15 +17,24 @@
         <button
             type="button"
             class="sa-adder__btn"
-            :class="{ 'sa-adder__btn--pending': isPending }"
+            :class="{ 'sa-adder__btn--pending': isPending, 'sa-adder__btn--root': isRoot }"
             :aria-label="label"
             :aria-pressed="isPending"
             @click="onClick"
         >
-            <Icon name="plus" class="size-4" />
+            <Icon name="plus" :class="isRoot ? 'size-4' : 'size-3'" />
         </button>
 
         <span v-if="isRoot" class="sa-adder__hint">{{ rootLabel }}</span>
+        <!-- Which output this "+" continues, beside it (a Loop's "After
+             loop"). Out of the flow of the column so the button stays centred
+             under its handle. -->
+        <span
+            v-else-if="data.hint"
+            class="sa-adder__side"
+            :class="data.hintSide === 'left' ? 'sa-adder__side--left' : 'sa-adder__side--right'"
+            aria-hidden="true"
+        >{{ data.hint }}</span>
     </div>
 </template>
 
@@ -45,7 +54,11 @@ const isRoot = computed(() => !props.data.fromNodeKey);
 // The wording belongs to the host: an automation starts with a trigger, a
 // funnel starts with an entry page, and this component knows neither.
 const rootLabel = computed(() => props.data.rootLabel ?? __('Add a start'));
-const label = computed(() => (isRoot.value ? rootLabel.value : (props.data.stepLabel ?? __('Add a step'))));
+const label = computed(() => {
+    if (isRoot.value) return rootLabel.value;
+    const step = props.data.stepLabel ?? __('Add a step');
+    return props.data.hint ? `${step}: ${props.data.hint}` : step;
+});
 
 const target = computed(() => ({
     kind: 'append',

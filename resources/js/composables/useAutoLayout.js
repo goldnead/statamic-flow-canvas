@@ -89,13 +89,21 @@ export function fractionForOutput(node, output) {
  *   Variablen-Pills auf „Zugang schicken", und „Kontakt anlegen" lag darueber).
  *   Mit den Hoehen bekommt jede Ebene den Abstand, den ihre hoechste Karte
  *   braucht; alle anderen Ebenen bleiben, wo sie waren.
+ * @param {Object<string, {x?: number, left?: number, right?: number, top?: number}>} [options.insets]
+ *   Room around the subtree a node roots: `left` / `right` beside its columns
+ *   (`x` for both), `top` above the row it sits in. The canvas lays a framed
+ *   loop out as one wide node this way (see useScopeFrames.js); without it
+ *   every column is `COLUMN_SPAN` apart, as before.
+ * @param {Object<string, number>} [options.gaps]  The gap below a node's row,
+ *   per node; a row takes the largest gap among its nodes. Without it every
+ *   row gets `rowHeight - NODE_HEIGHT`, as before.
  * @returns {{ positions: Object, openOutputs: Array, roots: Array }}
  *   positions:   { [node_key]: { x, y } }
  *   openOutputs: [{ from_node_key, from_output }] — outputs with no edge yet
  *                (these are where the append "+" adders are placed)
  *   roots:       node_keys with no incoming edge (top of the flow)
  */
-export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT, nodeHeights = null } = {}) {
+export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_HEIGHT, nodeHeights = null, insets = null, gaps = null } = {}) {
     const positions = {};
     const depthOf = {};
     if (!nodes.length) {
@@ -153,6 +161,19 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
         if (placed.has(key)) return positions[key]?.x ?? cursor;
         placed.add(key);
 
+        // Room around a subtree the host frames (a loop body): the frame and
+        // the line running back outside its left edge must not reach into the
+        // neighbouring column.
+        const inset = insets?.[key];
+        const insetLeft = Number(inset?.left ?? inset?.x) || 0;
+        const insetRight = Number(inset?.right ?? inset?.x) || 0;
+        cursor += insetLeft;
+        const centerX = placeSubtree(key, depth);
+        cursor += insetRight;
+        return centerX;
+    }
+
+    function placeSubtree(key, depth) {
         const kids = orderedChildren(key).filter((k) => !placed.has(k));
         let centerX;
         if (!kids.length) {
@@ -185,9 +206,16 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
     // wieder genau `rowHeight` unter der vorigen — dieselbe Rechnung wie zuvor.
     const gap = Math.max(0, rowHeight - LAYOUT.NODE_HEIGHT);
     const tallestAt = new Map();
+    // Extra room above a row that starts a framed body, for its title bar.
+    const extraAbove = new Map();
+    const gapAt = new Map();
     let maxDepth = 0;
     for (const [key, depth] of Object.entries(depthOf)) {
         if (depth > maxDepth) maxDepth = depth;
+        const top = Number(insets?.[key]?.top) || 0;
+        if (top > (extraAbove.get(depth) ?? 0)) extraAbove.set(depth, top);
+        const own = Number(gaps?.[key]);
+        if (Number.isFinite(own) && own >= 0) gapAt.set(depth, Math.max(gapAt.get(depth) ?? 0, own));
         const measured = nodeHeights?.[key];
         const height = Number.isFinite(measured) && measured > 0 ? measured : LAYOUT.NODE_HEIGHT;
         tallestAt.set(depth, Math.max(tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT, height));
@@ -196,14 +224,23 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
     const yAt = [];
     let y = LAYOUT.ORIGIN_Y;
     for (let depth = 0; depth <= maxDepth; depth++) {
+        y += extraAbove.get(depth) ?? 0;
         yAt[depth] = y;
-        y += (tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT) + gap;
+        y += (tallestAt.get(depth) ?? LAYOUT.NODE_HEIGHT) + (gapAt.get(depth) ?? gap);
     }
     for (const [key, depth] of Object.entries(depthOf)) {
         positions[key].y = yAt[depth];
     }
 
-    // Open outputs = append points ("+" adders).
+    return { positions, openOutputs: openOutputsOf(nodes, edges), roots };
+}
+
+/**
+ * Outputs with no edge yet — where the append "+" adders go.
+ *
+ * @returns {Array<{ from_node_key: string, from_output: string, label: string }>}
+ */
+export function openOutputsOf(nodes = [], edges = []) {
     const hasEdgeFrom = new Set(
         edges.map((e) => `${e.from_node_key}::${e.from_output || 'default'}`),
     );
@@ -216,5 +253,5 @@ export function computeLayout(nodes = [], edges = [], { rowHeight = LAYOUT.ROW_H
         }
     }
 
-    return { positions, openOutputs, roots };
+    return openOutputs;
 }

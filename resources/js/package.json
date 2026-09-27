@@ -9,7 +9,8 @@
     "./components/*": "./components/*",
     "./composables/*": "./composables/*",
     "./canvas.css": "./canvas.css",
-    "./canvas-theme.css": "./canvas-theme.css"
+    "./canvas-theme.css": "./canvas-theme.css",
+    "./scope-frames.css": "./scope-frames.css"
   },
   "peerDependencies": {
     "@vue-flow/background": "^1.3.0",

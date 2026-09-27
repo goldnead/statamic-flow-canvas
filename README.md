@@ -49,6 +49,23 @@ the card looks exactly as it always has.
 
 `<Canvas :show-thumbnails="false">` switches the tiles off without stripping the field.
 
+## Loop bodies: scopes
+
+A node whose one output opens a body that runs repeatedly (an automation's Loop) can be declared
+as a scope. The canvas then frames the body, draws a dashed line from its ends back to the owner,
+and lets the body be folded into one card. Nothing of it is saved.
+
+```js
+<Canvas :scopes="{ loop: { output: 'loop', continuation: 'done' } }"
+        :scope-labels="{ steps: (n) => __n(':count step|:count steps', n),
+                         collapse: (t) => __('Collapse “:title”', { title: t }),
+                         expand: (t) => __('Expand “:title”', { title: t }) }"
+        :view-state-key="`my-addon.canvas.${id}.collapsed`" />
+```
+
+Import the styles into the same layer as `canvas.css`:
+`@import "@goldnead/flow-canvas/scope-frames.css";`
+
 ## Requirements
 
 - PHP 8.2 or newer
