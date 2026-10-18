@@ -8,7 +8,9 @@
             :aria-label="__('Zoom out')"
             @click="zoomOut({ duration: 200 })"
         >
-            <span class="text-base leading-none px-1">&minus;</span>
+            <!-- The `fc-` classes below are plain CSS in the <style> block, not
+                 Tailwind utilities (see NodeLibrary.vue). -->
+            <span class="fc-zoom-out-glyph">&minus;</span>
         </Button>
 
         <span class="sa-control-bar__zoom">{{ zoomPercent }}%</span>
@@ -22,7 +24,7 @@
             @click="zoomIn({ duration: 200 })"
         />
 
-        <span class="mx-0.5 h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        <span class="fc-control-divider" />
 
         <Button
             variant="ghost"
@@ -50,3 +52,21 @@ const { zoomIn, zoomOut, fitView, viewport } = useVueFlow(props.flowId);
 
 const zoomPercent = computed(() => Math.round((viewport.value?.zoom ?? 1) * 100));
 </script>
+
+<style scoped>
+/* Tailwind utilities before, same values. Dark colour from the old `dark:` variant. */
+.fc-zoom-out-glyph {
+    font-size: 1rem;
+    line-height: 1;
+    padding-inline: 0.25rem;
+}
+.fc-control-divider {
+    width: 1px;
+    height: 1rem;
+    margin-inline: 0.125rem;
+    background: var(--color-gray-200);
+}
+:global(.dark) .fc-control-divider {
+    background: var(--color-gray-700);
+}
+</style>

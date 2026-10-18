@@ -54,7 +54,7 @@
                 </div>
             </div>
 
-            <div class="flex items-center shrink-0">
+            <div class="flex items-center fc-node-actions">
                 <Dropdown side="bottom" align="end">
                     <template #trigger>
                         <Button
@@ -151,9 +151,9 @@
         <div class="sa-node__footer">
             <span class="sa-status-dot" :class="statusDotClass" />
             <span class="sa-node__kind-label">{{ statusLabel }}</span>
-            <span v-if="labeledOutputs.length && !data.hideLegend" class="ml-auto flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 text-[10px] font-mono">
+            <span v-if="labeledOutputs.length && !data.hideLegend" class="flex items-center fc-node-legend">
                 <template v-for="(out, i) in labeledOutputs" :key="out.handle">
-                    <span class="text-gray-300 dark:text-gray-600" v-if="i > 0">/</span>
+                    <span class="fc-node-legend-sep" v-if="i > 0">/</span>
                     <span :class="handleLabelClass(out.handle)">{{ out.label }}</span>
                 </template>
             </span>
@@ -341,3 +341,27 @@ const statusLabel = computed(() => {
     return __('Ready');
 });
 </script>
+
+<style scoped>
+/* Each `fc-` class replaces the Tailwind utilities that stood on the same
+   element; values are the Tailwind ones. Plain CSS, so the card looks the same
+   in a host that never generates these utilities (see NodeLibrary.vue). */
+.fc-node-actions {
+    flex-shrink: 0;
+}
+.fc-node-legend {
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    column-gap: 0.375rem;
+    row-gap: 0.125rem;
+    font-size: 10px;
+    font-family: var(--font-mono, ui-monospace, monospace);
+}
+.fc-node-legend-sep {
+    color: var(--color-gray-300);
+}
+:global(.dark) .fc-node-legend-sep {
+    color: var(--color-gray-600);
+}
+</style>

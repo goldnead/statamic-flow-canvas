@@ -26,7 +26,7 @@
                 :aria-pressed="isPending"
                 @click="onClick"
             >
-                <Icon name="plus" class="size-3" />
+                <Icon name="plus" class="fc-edge-insert-icon" />
             </button>
         </div>
     </EdgeLabelRenderer>
@@ -117,3 +117,11 @@ function onClick() {
     startPick(edgeTarget.value);
 }
 </script>
+
+<style scoped>
+/* Was the Tailwind utility `size-3` on the Icon. Plain CSS, see NodeLibrary.vue. */
+.fc-edge-insert-icon {
+    width: 0.75rem;
+    height: 0.75rem;
+}
+</style>

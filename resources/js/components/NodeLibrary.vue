@@ -1,7 +1,11 @@
 <template>
     <div class="p-3 flex flex-col h-full" :class="pickMode && 'sa-library--picking'">
-        <div class="flex items-center justify-between mb-2">
-            <h3 class="text-2xs uppercase tracking-wider text-gray-500 dark:text-gray-400 m-0">
+        <!-- The classes prefixed `fc-` are plain CSS in the <style> block below,
+             not Tailwind utilities: a host only generates a utility it uses
+             itself, and this file ships to hosts that don't (see the fade
+             comment further down). -->
+        <div class="flex items-center mb-2 fc-library-head">
+            <h3 class="text-2xs uppercase text-gray-500 fc-library-title">
                 {{ __('Node library') }}
             </h3>
             <Button
@@ -29,7 +33,7 @@
             v-model="search"
             type="search"
             :placeholder="__('Filter nodes…')"
-            class="mb-3"
+            class="fc-library-search"
         />
 
         <Tabs v-model="activeTab" class="flex-1 flex flex-col min-h-0">
@@ -66,7 +70,7 @@
                 >
                     <TabList class="flow-tab-list-nowrap">
                         <TabTrigger v-for="group in groups" :key="group.key" :name="group.key">
-                            <span class="flex items-center gap-1.5">
+                            <span class="flex items-center fc-tab-label">
                                 {{ group.label }}
                                 <Badge :text="String(group.items.length)" size="sm" color="default" pill />
                             </span>
@@ -115,7 +119,7 @@
                      searching has no effect; clearing the query returns to the
                      normal per-tab view. -->
                 <template v-if="searching">
-                    <section v-for="group in searchSections" :key="group.key" class="mb-3">
+                    <section v-for="group in searchSections" :key="group.key" class="fc-search-group">
                         <h4 class="sa-section-header mb-1">{{ group.label }}</h4>
                         <ul class="flex flex-col gap-1">
                             <PaletteItem
@@ -127,7 +131,7 @@
                             />
                         </ul>
                     </section>
-                    <p v-if="!hasSearchResults" class="text-xs text-gray-500 dark:text-gray-400 text-center py-6">
+                    <p v-if="!hasSearchResults" class="text-xs text-gray-500 text-center fc-empty-search">
                         {{ __('No nodes match your search.') }}
                     </p>
                 </template>
@@ -143,7 +147,7 @@
                                 @select="$emit('add', $event)"
                             />
                         </ul>
-                        <p v-if="!group.items.length" class="text-xs text-gray-500 dark:text-gray-400 text-center py-6">
+                        <p v-if="!group.items.length" class="text-xs text-gray-500 text-center fc-empty-group">
                             {{ __('No nodes in this category.') }}
                         </p>
                     </TabContent>
@@ -367,5 +371,40 @@ const PaletteItem = defineComponent({
 .flow-tab-fade--right {
     right: 0;
     background: linear-gradient(to left, var(--theme-color-content-bg), transparent);
+}
+
+/* Were Tailwind utilities (`justify-between`, `tracking-wider`, `m-0`, `mb-3`,
+   `py-6`, `gap-1.5`, `dark:text-gray-400`) on the same elements. Values are the
+   Tailwind ones; the dark colour is the old `dark:` variant. */
+.fc-library-head {
+    justify-content: space-between;
+}
+.fc-library-title {
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+:global(.dark) .fc-library-title {
+    color: var(--color-gray-400);
+}
+.fc-library-search {
+    margin-bottom: 0.75rem;
+}
+.fc-tab-label {
+    gap: 0.375rem;
+}
+.fc-search-group {
+    margin-bottom: 0.75rem;
+}
+.fc-empty-search {
+    padding-block: 1.5rem;
+}
+:global(.dark) .fc-empty-search {
+    color: var(--color-gray-400);
+}
+.fc-empty-group {
+    padding-block: 1.5rem;
+}
+:global(.dark) .fc-empty-group {
+    color: var(--color-gray-400);
 }
 </style>

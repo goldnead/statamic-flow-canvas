@@ -14,7 +14,7 @@
         :delete-key-code="null"
         :min-zoom="0.3"
         :max-zoom="1.5"
-        class="size-full"
+        class="fc-canvas"
         @node-click="onNodeClick"
     >
         <!-- One slot per declared kind. Written as a dynamic slot name rather
@@ -799,4 +799,13 @@ function onNodeClick({ node }) {
 @import '@vue-flow/core/dist/theme-default.css' layer(base);
 @import '@vue-flow/controls/dist/style.css' layer(base);
 @import '@vue-flow/minimap/dist/style.css' layer(base);
+</style>
+
+<style scoped>
+/* Was `size-full`. A Tailwind utility is generated only in a host whose build
+   scans this file; plain CSS travels with the component (see NodeLibrary.vue). */
+.fc-canvas {
+    width: 100%;
+    height: 100%;
+}
 </style>

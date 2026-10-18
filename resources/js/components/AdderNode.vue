@@ -22,7 +22,7 @@
             :aria-pressed="isPending"
             @click="onClick"
         >
-            <Icon name="plus" :class="isRoot ? 'size-4' : 'size-3'" />
+            <Icon name="plus" :class="isRoot ? 'fc-adder-icon--root' : 'size-3'" />
         </button>
 
         <span v-if="isRoot" class="sa-adder__hint">{{ rootLabel }}</span>
@@ -76,3 +76,12 @@ function onClick() {
     startPick(target.value);
 }
 </script>
+
+<style scoped>
+/* The root "+" icon was the Tailwind utility `size-4`. Plain CSS, so it
+   holds in a host that never generates that utility (see NodeLibrary.vue). */
+.fc-adder-icon--root {
+    width: 1rem;
+    height: 1rem;
+}
+</style>

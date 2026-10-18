@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed: shared components on plain CSS, not Tailwind utilities
+
+Seven components (`Canvas`, `AdderNode`, `ControlBar`, `InsertableEdge`, `NodeCard`,
+`NodeLibrary`, `PropertiesSection`) carried Tailwind utilities that a host only generates when its
+own build scans this package. Where that build did not, the element lost its layout or colour;
+a neighbouring addon's stylesheet often hid it. Each affected element now has an `fc-` class,
+styled in a scoped `<style>` block with the same values as before. Dark-mode colours use
+`:global(.dark)`; colours come from CSS variables, not hex. Utilities that were not on the list
+stay as they were. Guarded by `tests/js/plain-css.test.js`.
+
 ## 1.6.0 — 2026-09-27
 
 ### Added: scope frames — a loop body drawn as one thing
