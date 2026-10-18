@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.1 — 2026-10-18
 
 ### Changed: shared components on plain CSS, not Tailwind utilities
 
