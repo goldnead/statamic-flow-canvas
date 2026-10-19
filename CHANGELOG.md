@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.2 — 2026-10-19
+
+### Fixed: German words in the canvas
+
+- The canvas' own words ("Node library", "Ready", "Filter nodes…", zoom and node actions) came out as the English key
+  on a German Control Panel, because no host shipped them. The package now registers `resources/lang/de.json`
+  (`loadJsonTranslationsFrom`) and a test fails when a component uses a word the file lacks. No change to the JS.
+
+### Upgrading: no migration
+
 ## 1.6.1 — 2026-10-18
 
 ### Changed: shared components on plain CSS, not Tailwind utilities
