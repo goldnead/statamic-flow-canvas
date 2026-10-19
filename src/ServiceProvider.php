@@ -23,5 +23,19 @@ use Statamic\Providers\AddonServiceProvider;
  */
 class ServiceProvider extends AddonServiceProvider
 {
-    //
+    // Statamic would publish `resources/lang` as a namespaced group; this
+    // package has only JSON words and publishes nothing.
+    protected $translations = false;
+
+    /**
+     * The one thing it does carry: the canvas' own words. They are written
+     * in the components as `__('Node library')`, and the browser asks
+     * Statamic's dictionary for them, so a host that does not ship them (or a
+     * site that does not have them) shows the English key. The German file
+     * sits next to the code that uses the words.
+     */
+    public function bootAddon(): void
+    {
+        $this->loadJsonTranslationsFrom(__DIR__.'/../resources/lang');
+    }
 }
