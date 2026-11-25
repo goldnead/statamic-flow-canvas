@@ -31,6 +31,8 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
 
     let timer = null;
     let stopWatching = null;
+    let inFlight = null;
+    let rerun = false;
 
     function clearTimer() {
         if (timer) {
@@ -39,19 +41,49 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         }
     }
 
-    async function flush() {
+    function hasUnsaved() {
+        return status.value === 'pending' || status.value === 'saving' || status.value === 'error';
+    }
+
+    // Ask the browser to confirm leaving while an edit has not reached the server.
+    function onBeforeUnload(event) {
+        if (!enabled.value || !hasUnsaved()) return;
+        event.preventDefault();
+        event.returnValue = '';
+    }
+
+    async function runSaves() {
+        do {
+            rerun = false;
+            status.value = 'saving';
+            try {
+                await saver();
+                lastSavedAt.value = new Date();
+                lastError.value = null;
+                // A change that arrived while saving is not saved yet.
+                status.value = timer || rerun ? 'pending' : 'saved';
+            } catch (e) {
+                status.value = 'error';
+                lastError.value = e?.response?.data?.message || e?.message || 'Autosave failed.';
+                console.error('[flow-canvas] Autosave failed:', e);
+                return;
+            }
+        } while (rerun);
+    }
+
+    /**
+     * Saves now. Never runs two saves in parallel: a flush that arrives while
+     * a save is in flight queues exactly one follow-up with the newest state.
+     */
+    function flush() {
         clearTimer();
-        if (!enabled.value) return;
-        status.value = 'saving';
-        try {
-            await saver();
-            status.value = 'saved';
-            lastSavedAt.value = new Date();
-            lastError.value = null;
-        } catch (e) {
-            status.value = 'error';
-            lastError.value = e?.response?.data?.message || e.message || 'Autosave failed.';
+        if (!enabled.value) return Promise.resolve();
+        if (inFlight) {
+            rerun = true;
+            return inFlight;
         }
+        inFlight = runSaves().finally(() => { inFlight = null; });
+        return inFlight;
     }
 
     function schedule() {
@@ -68,6 +100,7 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
             () => schedule(),
             { deep: true },
         );
+        if (typeof window !== 'undefined') window.addEventListener('beforeunload', onBeforeUnload);
     }
 
     function stop() {
@@ -76,7 +109,16 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
             stopWatching();
             stopWatching = null;
         }
+        if (typeof window !== 'undefined') window.removeEventListener('beforeunload', onBeforeUnload);
         status.value = 'idle';
+    }
+
+    // Tear down without losing the last edit: save what is pending or failed first.
+    function dispose() {
+        if (enabled.value && (status.value === 'pending' || status.value === 'error')) {
+            flush();
+        }
+        stop();
     }
 
     function toggle(value) {
@@ -93,7 +135,7 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         start();
     }
 
-    onBeforeUnmount(stop);
+    onBeforeUnmount(dispose);
 
     return {
         status,
@@ -101,6 +143,7 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         lastError,
         enabled,
         flush,
+        dispose,
         toggle,
     };
 }
