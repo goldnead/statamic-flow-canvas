@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed: autosave no longer loses the last edit
+
+- Leaving the editor within the debounce window (or after a failed save) dropped the change without a word. `useAutosave` now saves what is pending on teardown (`dispose()`), exposes `isDirty` so hosts can register unsaved work with `Statamic.$dirty` (core owns the leave-the-page prompt), and logs a failed save.
+- A save that was still running no longer reports "saved" over a newer edit, and two saves never run in parallel: the newest state is saved right after the running one.
+
+
 ## 1.6.2 — 2026-10-19
 
 ### Fixed: German words in the canvas

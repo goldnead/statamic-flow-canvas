@@ -1,4 +1,4 @@
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 /**
  * Debounced autosave for a graph editor.
@@ -22,6 +22,10 @@ import { ref, watch, onBeforeUnmount } from 'vue';
  *   - "saving"   — saver running
  *   - "saved"    — last save completed successfully
  *   - "error"    — last save failed
+ *
+ * `isDirty` is true while an edit is unsaved (pending, saving or failed): wire
+ * it to Statamic.$dirty so core asks before the page is left. Leaving the
+ * editor (unmount / `dispose()`) saves what is pending or failed first.
  */
 export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled = false } = {}) {
     const status = ref('idle');
@@ -31,6 +35,8 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
 
     let timer = null;
     let stopWatching = null;
+    let inFlight = null;
+    let rerun = false;
 
     function clearTimer() {
         if (timer) {
@@ -39,19 +45,49 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         }
     }
 
-    async function flush() {
+    function hasUnsaved() {
+        return status.value === 'pending' || status.value === 'saving' || status.value === 'error';
+    }
+
+    // True while an edit has not reached the server. Hosts feed this to core's
+    // dirty-state handling (Statamic.$dirty), which owns the one leave-the-page
+    // prompt; a second beforeunload handler here would stack a second prompt.
+    const isDirty = computed(hasUnsaved);
+
+    async function runSaves() {
+        do {
+            rerun = false;
+            status.value = 'saving';
+            try {
+                await saver();
+                lastSavedAt.value = new Date();
+                lastError.value = null;
+                // Switched off while this save ran: leave the status alone.
+                if (!enabled.value) return;
+                // A change that arrived while saving is not saved yet.
+                status.value = timer || rerun ? 'pending' : 'saved';
+            } catch (e) {
+                status.value = 'error';
+                lastError.value = e?.response?.data?.message || e?.message || 'Autosave failed.';
+                console.error('[flow-canvas] Autosave failed:', e);
+                return;
+            }
+        } while (rerun && enabled.value);
+    }
+
+    /**
+     * Saves now. Never runs two saves in parallel: a flush that arrives while
+     * a save is in flight queues exactly one follow-up with the newest state.
+     */
+    function flush() {
         clearTimer();
-        if (!enabled.value) return;
-        status.value = 'saving';
-        try {
-            await saver();
-            status.value = 'saved';
-            lastSavedAt.value = new Date();
-            lastError.value = null;
-        } catch (e) {
-            status.value = 'error';
-            lastError.value = e?.response?.data?.message || e.message || 'Autosave failed.';
+        if (!enabled.value) return Promise.resolve();
+        if (inFlight) {
+            rerun = true;
+            return inFlight;
         }
+        inFlight = runSaves().finally(() => { inFlight = null; });
+        return inFlight;
     }
 
     function schedule() {
@@ -79,6 +115,14 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         status.value = 'idle';
     }
 
+    // Tear down without losing the last edit: save what is pending or failed first.
+    function dispose() {
+        if (enabled.value && (status.value === 'pending' || status.value === 'error')) {
+            flush();
+        }
+        stop();
+    }
+
     function toggle(value) {
         const next = typeof value === 'boolean' ? value : !enabled.value;
         enabled.value = next;
@@ -93,14 +137,16 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         start();
     }
 
-    onBeforeUnmount(stop);
+    onBeforeUnmount(dispose);
 
     return {
         status,
         lastSavedAt,
         lastError,
+        isDirty,
         enabled,
         flush,
+        dispose,
         toggle,
     };
 }
