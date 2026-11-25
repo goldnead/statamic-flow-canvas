@@ -1,4 +1,4 @@
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 
 /**
  * Debounced autosave for a graph editor.
@@ -22,6 +22,10 @@ import { ref, watch, onBeforeUnmount } from 'vue';
  *   - "saving"   — saver running
  *   - "saved"    — last save completed successfully
  *   - "error"    — last save failed
+ *
+ * `isDirty` is true while an edit is unsaved (pending, saving or failed): wire
+ * it to Statamic.$dirty so core asks before the page is left. Leaving the
+ * editor (unmount / `dispose()`) saves what is pending or failed first.
  */
 export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled = false } = {}) {
     const status = ref('idle');
@@ -45,12 +49,10 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         return status.value === 'pending' || status.value === 'saving' || status.value === 'error';
     }
 
-    // Ask the browser to confirm leaving while an edit has not reached the server.
-    function onBeforeUnload(event) {
-        if (!enabled.value || !hasUnsaved()) return;
-        event.preventDefault();
-        event.returnValue = '';
-    }
+    // True while an edit has not reached the server. Hosts feed this to core's
+    // dirty-state handling (Statamic.$dirty), which owns the one leave-the-page
+    // prompt; a second beforeunload handler here would stack a second prompt.
+    const isDirty = computed(hasUnsaved);
 
     async function runSaves() {
         do {
@@ -102,7 +104,6 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
             () => schedule(),
             { deep: true },
         );
-        if (typeof window !== 'undefined') window.addEventListener('beforeunload', onBeforeUnload);
     }
 
     function stop() {
@@ -111,7 +112,6 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
             stopWatching();
             stopWatching = null;
         }
-        if (typeof window !== 'undefined') window.removeEventListener('beforeunload', onBeforeUnload);
         status.value = 'idle';
     }
 
@@ -143,6 +143,7 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
         status,
         lastSavedAt,
         lastError,
+        isDirty,
         enabled,
         flush,
         dispose,

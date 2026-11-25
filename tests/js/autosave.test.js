@@ -157,29 +157,29 @@ describe('useAutosave', () => {
         expect(api.status.value).toBe('idle');
     });
 
-    it('asks the browser to confirm leaving while a change is unsaved', async () => {
-        const listeners = {};
-        vi.stubGlobal('window', {
-            addEventListener: (name, fn) => { listeners[name] = fn; },
-            removeEventListener: (name) => { delete listeners[name]; },
-        });
+    it('reports unsaved work through isDirty, for the host to hand to core', async () => {
         const saver = vi.fn().mockResolvedValue();
         const { graph, api } = setup(saver);
 
-        expect(listeners.beforeunload).toBeTypeOf('function');
+        expect(api.isDirty.value).toBe(false);
 
         graph.n++;
         await nextTick();
-        const event = { preventDefault: vi.fn(), returnValue: undefined };
-        listeners.beforeunload(event);
-        expect(event.preventDefault).toHaveBeenCalled();
+        expect(api.isDirty.value).toBe(true);
 
         await vi.advanceTimersByTimeAsync(100);
-        const clean = { preventDefault: vi.fn() };
-        listeners.beforeunload(clean);
-        expect(clean.preventDefault).not.toHaveBeenCalled();
+        expect(api.isDirty.value).toBe(false);
+    });
 
-        api.dispose();
-        expect(listeners.beforeunload).toBeUndefined();
+    it('stays dirty after a failed save', async () => {
+        const saver = vi.fn().mockRejectedValue(new Error('boom'));
+        const { graph, api } = setup(saver);
+
+        graph.n++;
+        await nextTick();
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(api.status.value).toBe('error');
+        expect(api.isDirty.value).toBe(true);
     });
 });
