@@ -135,6 +135,28 @@ describe('useAutosave', () => {
         expect(api.status.value).toBe('saved');
     });
 
+    it('does not run the queued follow-up save after autosave was switched off', async () => {
+        const first = deferred();
+        const saver = vi.fn()
+            .mockImplementationOnce(() => first.promise)
+            .mockResolvedValue();
+        const { graph, api } = setup(saver);
+
+        graph.n++;
+        await nextTick();
+        await vi.advanceTimersByTimeAsync(100);
+        graph.n++;
+        await nextTick();
+        await vi.advanceTimersByTimeAsync(100);
+
+        api.toggle(false);
+        first.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(saver).toHaveBeenCalledTimes(1);
+        expect(api.status.value).toBe('idle');
+    });
+
     it('asks the browser to confirm leaving while a change is unsaved', async () => {
         const listeners = {};
         vi.stubGlobal('window', {

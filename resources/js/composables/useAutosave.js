@@ -60,6 +60,8 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
                 await saver();
                 lastSavedAt.value = new Date();
                 lastError.value = null;
+                // Switched off while this save ran: leave the status alone.
+                if (!enabled.value) return;
                 // A change that arrived while saving is not saved yet.
                 status.value = timer || rerun ? 'pending' : 'saved';
             } catch (e) {
@@ -68,7 +70,7 @@ export function useAutosave({ source, saver, debounceMs = 2000, defaultEnabled =
                 console.error('[flow-canvas] Autosave failed:', e);
                 return;
             }
-        } while (rerun);
+        } while (rerun && enabled.value);
     }
 
     /**
